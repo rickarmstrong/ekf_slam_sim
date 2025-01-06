@@ -5,11 +5,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
 
 add_executable(ekf_slam src/ekf_slam.cpp)
 target_include_directories(ekf_slam PUBLIC
@@ -19,6 +15,7 @@ target_compile_features(ekf_slam PUBLIC c_std_99 cxx_std_17)  # Require C99 and 
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
