@@ -40,6 +40,8 @@ def generate_launch_description():
     # Get the launch directory
     bringup_dir = get_package_share_directory('ekf_slam_sim')
     launch_dir = os.path.join(bringup_dir, 'launch')
+    launch_include_dir = os.path.join(launch_dir, 'include')
+
     # This checks that tb4 exists needed for the URDF / simulation files.
     # If not using TB4, its safe to remove.
     sim_dir = get_package_share_directory('ekf_slam_sim')
@@ -183,7 +185,7 @@ def generate_launch_description():
     )
 
     rviz_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(launch_dir, 'rviz_launch.py')),
+        PythonLaunchDescriptionSource(os.path.join(launch_include_dir, 'rviz_launch.py')),
         condition=IfCondition(use_rviz),
         launch_arguments={
             'namespace': namespace,
@@ -194,7 +196,7 @@ def generate_launch_description():
     )
 
     bringup_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(launch_dir, 'bringup_launch.py')),
+        PythonLaunchDescriptionSource(os.path.join(launch_include_dir, 'bringup_launch.py')),
         launch_arguments={
             'namespace': namespace,
             'use_namespace': use_namespace,
@@ -243,7 +245,7 @@ def generate_launch_description():
 
     gz_robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(sim_dir, 'launch', 'spawn_tb4.launch.py')),
+            os.path.join(launch_include_dir, 'spawn_tb4.launch.py')),
         launch_arguments={'namespace': namespace,
                           'use_simulator': use_simulator,
                           'use_sim_time': use_sim_time,
