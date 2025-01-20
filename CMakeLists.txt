@@ -6,12 +6,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_executable(ekf_slam src/ekf_slam.cpp)
-target_include_directories(ekf_slam PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
-target_compile_features(ekf_slam PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(ekf_slam rclcpp std_msgs)
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
