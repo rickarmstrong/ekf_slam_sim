@@ -5,11 +5,11 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.substitutions import LaunchConfiguration
 
-PACKAGE_NAME = 'apriltag_ros'
 
 def generate_launch_description():
-    # Configs files
-    config_file = os.path.join(get_package_share_directory(PACKAGE_NAME), "config", "params.yaml")
+    # Config files.
+    config_file = os.path.join(get_package_share_directory('ekf_slam_sim'), "config", "params.yaml")
+    tags_config_file = os.path.join(get_package_share_directory('ekf_slam_sim'), "config", "tags.yaml")
 
     # Launch arguments
     sim_time_arg = DeclareLaunchArgument(
@@ -20,11 +20,10 @@ def generate_launch_description():
 
     # Launch arguments
     sim_time = LaunchConfiguration('use_sim_time')
-    tags_config_file = LaunchConfiguration('tags_config_file')
 
     # Nodes to launch
     node = Node(
-        package=PACKAGE_NAME,
+        package='apriltag_ros',
         executable='ContinuousDetector', # Other option SingleDetector
         arguments=['--ros-args', '--log-level', 'info'],
         parameters=[config_file],
