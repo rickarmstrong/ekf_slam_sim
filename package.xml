@@ -3,8 +3,7 @@
 <package format="3">
   <name>ekf_slam_sim</name>
   <version>0.0.0</version>
-  <description>ROS package with launch files and code to demonstrate landmark-based EKF SLAM
-on a simulated Turtlebot 4 in Gazebo.</description>
+  <description>ROS package with launch files and code to demonstrate landmark-based EKF SLAM on a simulated Turtlebot 4 in Gazebo.</description>
   <maintainer email="waitingfortheelectrician@gmail.com">Rick Armstrong</maintainer>
   <license>BSD 3-clause</license>
 
@@ -12,6 +11,7 @@ on a simulated Turtlebot 4 in Gazebo.</description>
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
+  <depend>apriltag_ros_interfaces</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

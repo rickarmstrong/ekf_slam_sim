@@ -2,15 +2,16 @@ cmake_minimum_required(VERSION 3.8)
 project(ekf_slam_sim)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic -g)
 endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(apriltag_ros_interfaces REQUIRED)
 
 add_executable(ekf_slam src/ekf_slam.cpp)
-ament_target_dependencies(ekf_slam rclcpp std_msgs)
+ament_target_dependencies(ekf_slam rclcpp std_msgs apriltag_ros_interfaces)
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
