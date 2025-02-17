@@ -9,6 +9,12 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(apriltag_ros_interfaces REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+include_directories(
+        include
+        ${EIGEN3_INCLUDE_DIR}
+)
 
 add_executable(ekf_slam src/ekf_slam.cpp)
 ament_target_dependencies(ekf_slam rclcpp std_msgs apriltag_ros_interfaces)
