@@ -16,13 +16,13 @@ find_package(apriltag_ros_interfaces REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 include_directories(
-        include
-        ${EIGEN3_INCLUDE_DIR}
+  include
+  ${EIGEN3_INCLUDE_DIR}
 )
 
 add_executable(ekf_slam src/ekf_slam.cpp
         include/ekf_localizer.hpp)
-ament_target_dependencies(ekf_slam rclcpp std_msgs apriltag_ros_interfaces)
+ament_target_dependencies(ekf_slam PUBLIC rclcpp std_msgs apriltag_ros_interfaces Eigen3)
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
@@ -34,15 +34,15 @@ install(DIRECTORY params DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY worlds DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
+
   ament_lint_auto_find_test_dependencies()
+
+  ament_find_gtest()
+
+  add_subdirectory(test)
 endif()
 
 ament_package()
