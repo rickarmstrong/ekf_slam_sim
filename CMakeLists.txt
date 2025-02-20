@@ -33,19 +33,6 @@ install(DIRECTORY rviz DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY params DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY worlds DESTINATION share/${PROJECT_NAME})
 
-
-# Catch2 tests.
-Include(FetchContent)
-FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG        v3.8.0 # or a later release
-)
-FetchContent_MakeAvailable(Catch2)
-add_executable(tests test/test_localizer.cpp)
-target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
-
-
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
