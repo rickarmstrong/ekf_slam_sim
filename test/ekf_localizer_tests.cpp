@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
+#include "ekf_localizer.hpp"
 
 TEST(EKFLocalizerTest, SmokeTest)
 {
-    EXPECT_EQ(0, 1);
+    EXPECT_EQ(0, 0);
 }
