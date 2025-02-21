@@ -1,2 +1,6 @@
 .idea/
 cmake-build-debug/
+compile_commands.json
+install/
+launch/__pycache__/
+log/
