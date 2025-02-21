@@ -20,7 +20,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
-add_executable(ekf_slam src/ekf_slam.cpp)
+add_executable(ekf_slam src/ekf_slam_node.cpp)
 ament_target_dependencies(ekf_slam PUBLIC rclcpp std_msgs apriltag_ros_interfaces Eigen3)
 
 install(TARGETS ekf_slam
