@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Richard Armstrong
 # include "ekf_localizer.hpp"
 
 int main(int argc, char * argv[])
