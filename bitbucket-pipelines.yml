@@ -4,4 +4,4 @@ pipelines:
   default:
     - step:
         script:
-          - git push --mirror git@github.com:rickarmstrong/ekf_slam_sim.git
+          - git push --all git@github.com:rickarmstrong/ekf_slam_sim.git
