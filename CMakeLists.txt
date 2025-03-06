@@ -12,6 +12,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(apriltag_ros_interfaces REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -21,7 +22,7 @@ include_directories(
 )
 
 add_executable(ekf_slam src/ekf_slam_node.cpp)
-ament_target_dependencies(ekf_slam PUBLIC rclcpp std_msgs apriltag_ros_interfaces Eigen3)
+ament_target_dependencies(ekf_slam PUBLIC rclcpp std_msgs nav_msgs apriltag_ros_interfaces Eigen3)
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
