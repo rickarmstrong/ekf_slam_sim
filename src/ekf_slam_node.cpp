@@ -16,6 +16,7 @@ private:
   void detection_cb(const TagArray::SharedPtr& msg) const {
     std::cout << msg->header.frame_id << std::endl;
   }
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
 };
 

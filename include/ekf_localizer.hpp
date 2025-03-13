@@ -1,8 +1,8 @@
 // Copyright (c) 2025 Richard Armstrong
 #ifndef EKF_LOCALIZER_HPP
 #define EKF_LOCALIZER_HPP
-#include <chrono>
-#include <memory>
+#include <iostream>
+#include <string>
 
 #include <Eigen/Dense>
 
@@ -28,6 +28,7 @@ class State final {
 public:
   State() = default;
   ~State() = default;
+  [[nodiscard]] std::string to_string() const { return std::string("State"); }
 };
 
 struct Twist
@@ -44,11 +45,14 @@ public:
 
   State predict(const Twist& u, const State& prev_state)
   {
+    std::cout << u.angular.size() << std::endl;
+    std::cout << prev_state.to_string() << std::endl;
     return Ekf::state;
   }
 
   State correct(MeasurementList z)
   {
+    std::cout << z.size();
     return Ekf::state;
   }
 
