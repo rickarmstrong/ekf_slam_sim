@@ -54,7 +54,7 @@ Pose2D g(const Twist& u, const Pose2D& x0, double delta_t)
   double theta = x0(2);
 
   // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
-  // Here we're calling the signed ration v/omega "r" for convenience, even though it's not exactly /that/.
+  // Here we're calling the signed ratio v/omega "r" for decluttering convenience, even though it's not exactly /that/.
   double r = v_t / omega_t;
 
   // Pose delta.
