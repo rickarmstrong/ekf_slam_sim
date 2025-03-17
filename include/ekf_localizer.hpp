@@ -1,10 +1,13 @@
 // Copyright (c) 2025 Richard Armstrong
 #ifndef EKF_LOCALIZER_HPP
 #define EKF_LOCALIZER_HPP
-#include <iostream>
-#include <string>
+#include <cmath>
+#include <chrono>
+using duration = std::chrono::steady_clock::duration;
+using time_point = std::chrono::steady_clock::time_point;
 
 #include <Eigen/Dense>
+using Pose2D = Eigen::Vector3d;  // x, y, theta
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -22,20 +25,47 @@ constexpr size_t LANDMARKS_KNOWN = 16;  // The number of tags defined in config/
 constexpr size_t STATE_DIMS = POSE_DIMS + LM_DIMS * LANDMARKS_KNOWN;
 
 class Measurement;
-typedef std::list<Measurement> MeasurementList;
+using MeasurementList = std::list<Measurement>;
 
-class State final {
-public:
-  State() = default;
-  ~State() = default;
-  [[nodiscard]] std::string to_string() const { return std::string("State"); }
+struct EkfState {
+  EkfState()
+    :state(STATE_DIMS), covariance(STATE_DIMS, STATE_DIMS)
+  {
+    state.setZero();
+    covariance.setZero();
+  }
+
+  Eigen::VectorXd state;
+  Eigen::MatrixXd covariance;
+  time_point timestamp;
 };
 
 struct Twist
 {
-  Eigen::Vector3d linear;
-  Eigen::Vector3d angular;
+  double linear;
+  double angular;
 };
+
+inline
+Pose2D g(const Twist& u, const Pose2D& x0, double delta_t)
+{
+  double v_t = u.linear;
+  double omega_t = u.angular;
+  double theta = x0(2);
+
+  // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
+  // Here we're calling the signed ration v/omega "r" for convenience, even though it's not exactly /that/.
+  double r = v_t / omega_t;
+
+  // Pose delta.
+  Pose2D delta_x{
+    -r * sin(theta) + r * sin(theta + (omega_t * delta_t)),
+    r * cos(theta) - r * cos(theta + (omega_t * delta_t)),
+    omega_t * delta_t
+  };
+
+  return x0 + delta_x;
+}
 
 class Ekf final
 {
@@ -43,21 +73,25 @@ public:
   Ekf() = default;
   ~Ekf() = default;
 
-  State predict(const Twist& u, const State& prev_state)
+  EkfState predict(const Twist& u, duration dt)
   {
-    std::cout << u.angular.size() << std::endl;
-    std::cout << prev_state.to_string() << std::endl;
+    // Silence unused var warnings for now.
+    (void) u;
+    (void) dt;
+
     return Ekf::state;
   }
 
-  State correct(MeasurementList z)
+  EkfState correct(MeasurementList z)
   {
-    std::cout << z.size();
+    // Silence unused var warnings for now.
+    (void) z;
     return Ekf::state;
   }
 
 private:
-  inline static auto state = State();
+  inline static auto state = EkfState();
+
 };
 
 class Measurement final
