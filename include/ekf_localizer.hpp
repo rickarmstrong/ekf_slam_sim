@@ -7,7 +7,6 @@
 #include <Eigen/Dense>
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 
 #include "apriltag_ros_interfaces/msg/april_tag_detection.hpp"
 #include "apriltag_ros_interfaces/msg/april_tag_detection_array.hpp"
