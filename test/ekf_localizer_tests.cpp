@@ -1,6 +1,5 @@
 // Copyright (c) 2025 Richard Armstrong
 #include <cmath>
-#include <vector>
 #include "gtest/gtest.h"
 #include "ekf_localizer.hpp"
 
@@ -12,7 +11,7 @@ TEST(EKFLocalizerTest, SmokeTest)
 
 TEST(EKFLocalizerTest, MotionModelTest)
 {
-    Twist u{1.0, 1.0};
+    ekf_localizer::TwistCmd u{1.0, 1.0};
     Pose2D x0{0.0, 0.0, 0.0};
     double delta_t = 1.0;
     Pose2D x1 = g(u, x0, delta_t);

@@ -3,11 +3,8 @@
 #define EKF_LOCALIZER_HPP
 #include <cmath>
 #include <chrono>
-using duration = std::chrono::steady_clock::duration;
-using time_point = std::chrono::steady_clock::time_point;
 
 #include <Eigen/Dense>
-using Pose2D = Eigen::Vector3d;  // x, y, theta
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -16,8 +13,12 @@ using Pose2D = Eigen::Vector3d;  // x, y, theta
 #include "apriltag_ros_interfaces/msg/april_tag_detection_array.hpp"
 
 // Aliases to reduce the name noise.
+using time_point = std::chrono::steady_clock::time_point;
+using Pose2D = Eigen::Vector3d;  // x, y, theta
 using TagDetection = apriltag_ros_interfaces::msg::AprilTagDetection;
 using TagArray = apriltag_ros_interfaces::msg::AprilTagDetectionArray;
+
+namespace ekf_localizer {
 
 constexpr size_t POSE_DIMS = 3;     // x, y, theta.
 constexpr size_t LM_DIMS = 2;       // x, y.
@@ -40,14 +41,14 @@ struct EkfState {
   time_point timestamp;
 };
 
-struct Twist
+struct TwistCmd
 {
   double linear;
   double angular;
 };
 
 inline
-Pose2D g(const Twist& u, const Pose2D& x0, double delta_t)
+Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
   double omega_t = u.angular;
@@ -58,7 +59,7 @@ Pose2D g(const Twist& u, const Pose2D& x0, double delta_t)
   double r = v_t / omega_t;
 
   // Pose delta.
-  Pose2D delta_x{
+  Pose2D delta_x = {
     -r * sin(theta) + r * sin(theta + (omega_t * delta_t)),
     r * cos(theta) - r * cos(theta + (omega_t * delta_t)),
     omega_t * delta_t
@@ -67,13 +68,15 @@ Pose2D g(const Twist& u, const Pose2D& x0, double delta_t)
   return x0 + delta_x;
 }
 
+// EKF Landmark SLAM with a fixed number of easily-identifiable landmarks.
+// We manage the global EKF state vector using the Borg (aka Monostate) pattern.
 class Ekf final
 {
 public:
   Ekf() = default;
   ~Ekf() = default;
 
-  EkfState predict(const Twist& u, duration dt)
+  EkfState predict(const TwistCmd& u, double dt)
   {
     // Silence unused var warnings for now.
     (void) u;
@@ -101,4 +104,5 @@ public:
   ~Measurement() = default;
 };
 
+}
 #endif //EKF_LOCALIZER_HPP
