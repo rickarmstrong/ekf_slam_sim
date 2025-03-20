@@ -54,7 +54,7 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
   double theta = x0(2);
 
   // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
-  // Here we're calling the signed ratio v/omega "r" for decluttering convenience, even though it's not exactly /that/.
+  // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
   double r = v_t / omega_t;
 
   // Pose delta.
@@ -64,6 +64,8 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
     omega_t * delta_t
   };
 
+  // Normalize theta to [-pi, pi].
+  delta_x(2) = atan2(sin(delta_x(2)), cos(delta_x(2)));
   return x0 + delta_x;
 }
 
@@ -75,25 +77,29 @@ public:
   Ekf() = default;
   ~Ekf() = default;
 
+  // Mutates the global EKF state.
   EkfState predict(const TwistCmd& u, double dt)
   {
-    // Silence unused var warnings for now.
-    (void) u;
-    (void) dt;
+    // Noise-free motion estimate.
+    Pose2D predicted_pose = g(u, estimated_state.state(Eigen::seqN(0, 3)), dt);
 
-    return Ekf::state;
+    // Update current state.
+    estimated_state.state(Eigen::seqN(0, 3)) = predicted_pose;
+
+    return estimated_state;
   }
 
+  // Mutates the global EKF state.
   EkfState correct(MeasurementList z)
   {
     // Silence unused var warnings for now.
     (void) z;
-    return Ekf::state;
+    return Ekf::estimated_state;
   }
 
 private:
-  inline static auto state = EkfState();
-
+  inline static auto estimated_state = EkfState();
+  int x;
 };
 
 class Measurement final
