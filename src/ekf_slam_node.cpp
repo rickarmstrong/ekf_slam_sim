@@ -32,11 +32,25 @@ private:
 
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
   {
+    // If this is our first odom message, we can't calculate dt, so
+    // save the current time and return.
+    if (0 == last_odom_time_.time_since_epoch().count())
+    {
+      last_odom_time_ = std::chrono::steady_clock::now();
+      return;
+    }
+
     RCLCPP_INFO_STREAM_THROTTLE(
-      this->get_logger(), *this->get_clock(), 1000,  "Odometry frame_id:  " << msg->header.frame_id);
+      this->get_logger(), *this->get_clock(), 1000,  "Odometry received, frame_id:  " << msg->header.frame_id);
+
+    ekf_localizer::TwistCmd u{msg->twist.twist.linear.x, msg->twist.twist.angular.z};
+    double dt = double_seconds(steady_clock::now() - last_odom_time_).count();
+    auto next = filter_.predict(u, dt);
+    last_odom_time_ = steady_clock::now();
   }
 
   Ekf filter_;
+  time_point last_odom_time_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
 };

@@ -12,7 +12,9 @@
 #include "apriltag_ros_interfaces/msg/april_tag_detection_array.hpp"
 
 // Aliases to reduce the name noise.
-using time_point = std::chrono::steady_clock::time_point;
+using double_seconds = std::chrono::duration<double>;
+using steady_clock = std::chrono::steady_clock;
+using time_point = steady_clock::time_point;
 using Pose2D = Eigen::Vector3d;  // x, y, theta
 using TagDetection = apriltag_ros_interfaces::msg::AprilTagDetection;
 using TagArray = apriltag_ros_interfaces::msg::AprilTagDetectionArray;
@@ -42,6 +44,8 @@ struct EkfState {
 
 struct TwistCmd
 {
+  TwistCmd(double linear, double angular)
+    :linear(linear), angular(angular) {}
   double linear;
   double angular;
 };
