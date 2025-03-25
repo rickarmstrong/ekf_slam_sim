@@ -59,6 +59,11 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
 
   // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
   // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
+  if (abs(omega_t) < 1e-9)
+  {
+    // If we're near zero, clamp it to a tiny value to avoid division by zero.
+    omega_t = 1e-9;
+  }
   double r = v_t / omega_t;
 
   // Pose delta.
@@ -69,8 +74,9 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
   };
 
   // Normalize theta to [-pi, pi].
-  delta_x(2) = atan2(sin(delta_x(2)), cos(delta_x(2)));
-  return x0 + delta_x;
+  Pose2D x_next = x0 + delta_x;
+  x_next(2) = atan2(sin(x_next(2)), cos(x_next(2)));
+  return x_next;
 }
 
 // EKF Landmark SLAM with a fixed number of easily-identifiable landmarks.
@@ -85,12 +91,12 @@ public:
   EkfState predict(const TwistCmd& u, double dt)
   {
     // Noise-free motion estimate.
-    Pose2D predicted_pose = g(u, estimated_state.state(Eigen::seqN(0, 3)), dt);
+    Pose2D predicted_pose = g(u, estimated_state_.state(Eigen::seqN(0, 3)), dt);
 
     // Update current state.
-    estimated_state.state(Eigen::seqN(0, 3)) = predicted_pose;
+    estimated_state_.state(Eigen::seqN(0, 3)) = predicted_pose;
 
-    return estimated_state;
+    return estimated_state_;
   }
 
   // Mutates the global EKF state.
@@ -98,11 +104,11 @@ public:
   {
     // Silence unused var warnings for now.
     (void) z;
-    return Ekf::estimated_state;
+    return Ekf::estimated_state_;
   }
 
 private:
-  inline static auto estimated_state = EkfState();
+  inline static auto estimated_state_ = EkfState();
   int x;
 };
 
