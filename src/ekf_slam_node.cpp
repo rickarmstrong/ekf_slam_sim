@@ -40,13 +40,16 @@ private:
       return;
     }
 
-    RCLCPP_INFO_STREAM_THROTTLE(
-      this->get_logger(), *this->get_clock(), 1000,  "Odometry received, frame_id:  " << msg->header.frame_id);
-
     ekf_localizer::TwistCmd u{msg->twist.twist.linear.x, msg->twist.twist.angular.z};
     double dt = double_seconds(steady_clock::now() - last_odom_time_).count();
     auto next = filter_.predict(u, dt);
     last_odom_time_ = steady_clock::now();
+
+    RCLCPP_INFO_STREAM_THROTTLE(
+      this->get_logger(), *this->get_clock(), 1000,  "EKF pose estimate:  ("
+        << next.state(0) << ", "
+        << next.state(1) << ", "
+        << next.state(2) << ") ");
   }
 
   Ekf filter_;
