@@ -1,5 +1,6 @@
 // Copyright (c) 2025 Richard Armstrong
 #include "nav_msgs/msg/odometry.hpp"
+#include "tf2_ros/transform_broadcaster.h"
 
 # include "ekf_localizer.hpp"
 using Ekf = ekf_localizer::Ekf;
@@ -12,8 +13,6 @@ public:
   EkfNode()
     : Node("ekf_localizer")
   {
-    filter_ = Ekf();
-
     // A tag array contains all currently-detected TagDetections.
     tag_detections_sub_ = this->create_subscription<TagArray>(
       "tag_detections", QOS_HISTORY_DEPTH, [this](const TagArray::SharedPtr msg){ tag_detection_cb(msg); });
@@ -21,14 +20,16 @@ public:
     // Odometry messages, from which we will use velocities and treat them as control.
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
       "odom", QOS_HISTORY_DEPTH, [this](const nav_msgs::msg::Odometry::SharedPtr msg){ odom_cb(msg); });
+
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
   }
 
 private:
-  void tag_detection_cb(const TagArray::SharedPtr& msg)
-  {
-    RCLCPP_INFO_STREAM_THROTTLE(
-      this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
-  }
+  Ekf filter_;
+  time_point last_odom_time_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
   {
@@ -52,10 +53,11 @@ private:
         << next.state(2) << ") ");
   }
 
-  Ekf filter_;
-  time_point last_odom_time_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
+  void tag_detection_cb(const TagArray::SharedPtr& msg)
+  {
+    RCLCPP_INFO_STREAM_THROTTLE(
+      this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
+  }
 };
 
 int main(int argc, char * argv[])

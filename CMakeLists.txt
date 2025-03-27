@@ -15,6 +15,7 @@ find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(apriltag_ros_interfaces REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(tf2_ros)
 
 include_directories(
   include
@@ -22,7 +23,13 @@ include_directories(
 )
 
 add_executable(ekf_slam src/ekf_slam_node.cpp)
-ament_target_dependencies(ekf_slam PUBLIC rclcpp std_msgs nav_msgs apriltag_ros_interfaces Eigen3)
+ament_target_dependencies(ekf_slam PUBLIC
+        rclcpp
+        std_msgs
+        nav_msgs
+        apriltag_ros_interfaces
+        Eigen3
+        tf2_ros)
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
