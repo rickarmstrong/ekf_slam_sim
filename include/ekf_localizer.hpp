@@ -109,7 +109,6 @@ public:
 
 private:
   inline static auto estimated_state_ = EkfState();
-  int x;
 };
 
 class Measurement final
