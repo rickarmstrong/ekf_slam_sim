@@ -15,11 +15,11 @@
 using double_seconds = std::chrono::duration<double>;
 using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
-using Pose2D = Eigen::Vector3d;  // x, y, theta
 using TagDetection = apriltag_ros_interfaces::msg::AprilTagDetection;
 using TagArray = apriltag_ros_interfaces::msg::AprilTagDetectionArray;
 
 namespace ekf_localizer {
+using Pose2D = Eigen::Vector3d;  // x, y, theta
 
 constexpr size_t POSE_DIMS = 3;     // x, y, theta.
 constexpr size_t LM_DIMS = 2;       // x, y.

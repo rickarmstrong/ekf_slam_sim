@@ -22,6 +22,7 @@ public:
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
       "odom", QOS_HISTORY_DEPTH, [this](const nav_msgs::msg::Odometry::SharedPtr msg){ odom_cb(msg); });
 
+    pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("ekf_pose", QOS_HISTORY_DEPTH);
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
   }
 
@@ -30,16 +31,17 @@ private:
   time_point last_odom_time_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
-  void broadcast_pose_as_tf(const Pose2D& pose) const
+  void broadcast_pose_as_tf(const ekf_localizer::Pose2D& pose) const
   {
     geometry_msgs::msg::TransformStamped t;
 
     // Read message content and assign it to
     // corresponding tf variables
     t.header.stamp = this->get_clock()->now();
-    t.header.frame_id = "odom";
+    t.header.frame_id = "map";
     t.child_frame_id = "base_link_ekf";
 
     t.transform.translation.x = pose(0);
@@ -52,7 +54,7 @@ private:
     t.transform.rotation.z = q.z();
     t.transform.rotation.w = q.w();
 
-    // Send the transformation
+    // Publish.
     tf_broadcaster_->sendTransform(t);
   }
 
@@ -71,6 +73,7 @@ private:
     auto next = filter_.predict(u, dt);
     last_odom_time_ = steady_clock::now();
 
+    publish_pose(next.state(Eigen::seqN(0, 3)));
     broadcast_pose_as_tf(next.state(Eigen::seqN(0, 3)));
 
     RCLCPP_INFO_STREAM_THROTTLE(
@@ -78,6 +81,26 @@ private:
         << next.state(0) << ", "
         << next.state(1) << ", "
         << next.state(2) << ") ");
+  }
+
+  // Convert a ekf_localizer::Pose2D to a ROS message and publish it.
+  void publish_pose(const ekf_localizer::Pose2D& pose) const
+  {
+    geometry_msgs::msg::PoseWithCovarianceStamped msg;
+    msg.header.stamp = this->get_clock()->now();
+    msg.header.frame_id = "map";
+    msg.pose.pose.position.x = pose(0);
+    msg.pose.pose.position.y = pose(1);
+    msg.pose.pose.position.z = 0.0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, pose(2));
+    msg.pose.pose.orientation.x = q.x();
+    msg.pose.pose.orientation.y = q.y();
+    msg.pose.pose.orientation.z = q.z();
+    msg.pose.pose.orientation.w = q.w();
+    msg.pose.covariance[0] = 1.0;
+    msg.pose.covariance[7] = 2.0;
+    pose_pub_->publish(msg);
   }
 
   void tag_detection_cb(const TagArray::SharedPtr& msg)
