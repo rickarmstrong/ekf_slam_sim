@@ -31,13 +31,13 @@ using MeasurementList = std::list<Measurement>;
 
 struct EkfState {
   EkfState()
-    :state(STATE_DIMS), covariance(STATE_DIMS, STATE_DIMS)
+    :mean(STATE_DIMS), covariance(STATE_DIMS, STATE_DIMS)
   {
-    state.setZero();
+    mean.setZero();
     covariance.setZero();
   }
 
-  Eigen::VectorXd state;
+  Eigen::VectorXd mean;
   Eigen::MatrixXd covariance;
   time_point timestamp;
 };
@@ -79,6 +79,30 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
   return x_next;
 }
 
+// Return the 3x3 Jacobian of the motion model function g().
+inline
+Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
+{
+  double v_t = u.linear;
+  double omega_t = u.angular;
+  double theta = x0(2);
+
+  // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
+  // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
+  if (abs(omega_t) < 1e-9)
+  {
+    // If we're near zero, clamp it to a tiny value to avoid division by zero.
+    omega_t = 1e-9;
+  }
+  double r = v_t / omega_t;
+
+  Eigen::Matrix3d G_t_x;
+  G_t_x <<  1.0, 0.0, -r * cos(theta) + r * cos(theta + (omega_t * delta_t)),
+            0.0, 1.0, -r * sin(theta) + r * sin(theta + (omega_t * delta_t)),
+            0.0, 0.0, 1.0;
+  return G_t_x;
+}
+
 // EKF Landmark SLAM with a fixed number of easily-identifiable landmarks.
 // We manage the global EKF state vector using the Borg (aka Monostate) pattern.
 class Ekf final
@@ -90,11 +114,21 @@ public:
   // Mutates the global EKF state.
   EkfState predict(const TwistCmd& u, double dt)
   {
-    // Noise-free motion estimate.
-    Pose2D predicted_pose = g(u, estimated_state_.state(Eigen::seqN(0, 3)), dt);
+    // Current pose estimate.
+    auto x0 = estimated_state_.mean(Eigen::seqN(0, 3));
 
-    // Update current state.
-    estimated_state_.state(Eigen::seqN(0, 3)) = predicted_pose;
+    // Noise-free motion estimate.
+    Pose2D predicted_pose = g(u, x0, dt);
+
+    // Update pose.
+    estimated_state_.mean(Eigen::seqN(0, 3)) = predicted_pose;
+
+    // Update pose covariance.
+    Eigen::MatrixXd G_t(STATE_DIMS, STATE_DIMS);
+    G_t.setIdentity();
+    G_t.block<3, 3>(0, 0) = G_t_x(u, x0, dt);
+    auto cov_next = G_t * estimated_state_.covariance * G_t.transpose();
+    estimated_state_.covariance = cov_next;
 
     return estimated_state_;
   }

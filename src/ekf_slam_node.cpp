@@ -73,18 +73,18 @@ private:
     auto next = filter_.predict(u, dt);
     last_odom_time_ = steady_clock::now();
 
-    publish_pose(next.state(Eigen::seqN(0, 3)));
-    broadcast_pose_as_tf(next.state(Eigen::seqN(0, 3)));
+    publish_pose(next.mean(Eigen::seqN(0, 3)), next.covariance.block<3, 3>(0, 0));
+    broadcast_pose_as_tf(next.mean(Eigen::seqN(0, 3)));
 
     RCLCPP_INFO_STREAM_THROTTLE(
       this->get_logger(), *this->get_clock(), 1000,  "EKF pose estimate:  ("
-        << next.state(0) << ", "
-        << next.state(1) << ", "
-        << next.state(2) << ") ");
+        << next.mean(0) << ", "
+        << next.mean(1) << ", "
+        << next.mean(2) << ") ");
   }
 
   // Convert a ekf_localizer::Pose2D to a ROS message and publish it.
-  void publish_pose(const ekf_localizer::Pose2D& pose) const
+  void publish_pose(const ekf_localizer::Pose2D& pose, const Eigen::Matrix3d& cov) const
   {
     geometry_msgs::msg::PoseWithCovarianceStamped msg;
     msg.header.stamp = this->get_clock()->now();
@@ -98,8 +98,16 @@ private:
     msg.pose.pose.orientation.y = q.y();
     msg.pose.pose.orientation.z = q.z();
     msg.pose.pose.orientation.w = q.w();
-    msg.pose.covariance[0] = 1.0;
-    msg.pose.covariance[7] = 2.0;
+    msg.pose.covariance[0] = cov(0, 0);
+    msg.pose.covariance[1] = cov(0, 1);
+    msg.pose.covariance[2] = cov(0, 2);
+    msg.pose.covariance[3] = cov(1, 0);
+    msg.pose.covariance[4] = cov(1, 1);
+    msg.pose.covariance[5] = cov(1, 2);
+    msg.pose.covariance[6] = cov(2, 0);
+    msg.pose.covariance[7] = cov(2, 1);
+    msg.pose.covariance[8] = cov(2, 2);
+
     pose_pub_->publish(msg);
   }
 
