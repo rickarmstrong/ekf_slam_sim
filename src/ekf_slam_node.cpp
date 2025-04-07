@@ -89,6 +89,8 @@ private:
     geometry_msgs::msg::PoseWithCovarianceStamped msg;
     msg.header.stamp = this->get_clock()->now();
     msg.header.frame_id = "map";
+
+    // Pose.
     msg.pose.pose.position.x = pose(0);
     msg.pose.pose.position.y = pose(1);
     msg.pose.pose.position.z = 0.0;
@@ -98,16 +100,15 @@ private:
     msg.pose.pose.orientation.y = q.y();
     msg.pose.pose.orientation.z = q.z();
     msg.pose.pose.orientation.w = q.w();
+
+    // 2D position covariances, writing to 2x2 block from (0, 0).
     msg.pose.covariance[0] = cov(0, 0);
     msg.pose.covariance[1] = cov(0, 1);
-    msg.pose.covariance[2] = cov(0, 2);
-    msg.pose.covariance[3] = cov(1, 0);
-    msg.pose.covariance[4] = cov(1, 1);
-    msg.pose.covariance[5] = cov(1, 2);
-    msg.pose.covariance[6] = cov(2, 0);
-    msg.pose.covariance[7] = cov(2, 1);
-    msg.pose.covariance[8] = cov(2, 2);
+    msg.pose.covariance[6] = cov(1, 0);
+    msg.pose.covariance[7] = cov(1, 1);
 
+    // Orientation (theta) covariance (rotation about z only).
+    msg.pose.covariance[35] = cov(2, 2);
     pose_pub_->publish(msg);
   }
 
