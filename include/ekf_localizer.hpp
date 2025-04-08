@@ -26,6 +26,14 @@ constexpr size_t LM_DIMS = 2;       // x, y.
 constexpr size_t LANDMARKS_KNOWN = 16;  // The number of tags defined in config/tags.yaml.
 constexpr size_t STATE_DIMS = POSE_DIMS + LM_DIMS * LANDMARKS_KNOWN;
 
+// Process noise params, expressed as control noise. Will be mapped to state space at runtime.
+constexpr double CMD_VEL_LIN_STDEV_MS = 0.1;  // One-sigma Linear velocity error, meters/s.
+constexpr double CMD_VEL_ANG_STDEV_RADS = 0.1; // One-sigma angular velocity error, radians/s.
+const Eigen::Matrix2d M_t{
+  {CMD_VEL_LIN_STDEV_MS * CMD_VEL_LIN_STDEV_MS, 0.0},
+  {0.0, CMD_VEL_LIN_STDEV_MS * CMD_VEL_LIN_STDEV_MS},
+};
+
 class Measurement;
 using MeasurementList = std::list<Measurement>;
 
@@ -103,6 +111,34 @@ Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
   return G_t_x;
 }
 
+inline
+Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
+{
+  double v_t = u.linear;
+  double w_t = u.angular;  // "omega_t", but shorter.
+  double theta = x0(2);
+  if (abs(w_t) < 1e-9)
+  {
+    // If we're near zero, clamp it to a tiny value to avoid division by zero.
+    w_t = 1e-9;
+  }
+
+  double s_t = sin(theta);
+  double c_t = cos(theta);
+  double s_w_t = sin(theta + (w_t * delta_t));
+  double c_w_t = cos(theta + (w_t * delta_t));
+
+  double V_0_0 = (1. / w_t) + (-s_t + s_w_t);
+  double V_0_1 = (v_t / w_t * w_t) * s_t  - s_w_t + (v_t / w_t) * c_w_t * delta_t;
+  double V_1_0 = (1. / w_t) * (c_t - c_w_t);
+  double V_1_1 = -(v_t / w_t * w_t) * c_t - c_w_t + (v_t / w_t) * s_w_t * delta_t;
+  Eigen::MatrixXd V_t(3, 2);
+  V_t <<  V_0_0, V_0_1,
+          V_1_0, V_1_1,
+          0.0, delta_t;
+  return V_t;
+}
+
 // EKF Landmark SLAM with a fixed number of easily-identifiable landmarks.
 // We manage the global EKF state vector using the Borg (aka Monostate) pattern.
 class Ekf final
@@ -124,10 +160,13 @@ public:
     estimated_state_.mean(Eigen::seqN(0, 3)) = predicted_pose;
 
     // Update pose covariance.
-    Eigen::MatrixXd G_t(STATE_DIMS, STATE_DIMS);
+    Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> G_t;
     G_t.setIdentity();
     G_t.block<3, 3>(0, 0) = G_t_x(u, x0, dt);
-    auto cov_next = G_t * estimated_state_.covariance * G_t.transpose();
+    auto V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
+    auto R_t = V_t * M_t * V_t.transpose();
+    Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> cov_next = G_t * estimated_state_.covariance * G_t.transpose();
+    cov_next.block<3, 3>(0, 0) += R_t;  // Only update pose covariance.
     estimated_state_.covariance = cov_next;
 
     return estimated_state_;
