@@ -3,6 +3,7 @@
 #define EKF_LOCALIZER_HPP
 #include <cmath>
 #include <chrono>
+#include <limits>
 
 #include <Eigen/Dense>
 
@@ -62,16 +63,11 @@ inline
 Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double omega_t = u.angular;
+  double omega_t = std::fmax(u.angular, std::numeric_limits<double>::epsilon());
   double theta = x0(2);
 
-  // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
-  // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
-  if (abs(omega_t) < 1e-9)
-  {
-    // If we're near zero, clamp it to a tiny value to avoid division by zero.
-    omega_t = 1e-9;
-  }
+  // // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
+  // // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
   double r = v_t / omega_t;
 
   // Pose delta.
@@ -92,16 +88,11 @@ inline
 Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double omega_t = u.angular;
+  double omega_t = std::fmax(u.angular, std::numeric_limits<double>::epsilon());
   double theta = x0(2);
 
   // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
   // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
-  if (abs(omega_t) < 1e-9)
-  {
-    // If we're near zero, clamp it to a tiny value to avoid division by zero.
-    omega_t = 1e-9;
-  }
   double r = v_t / omega_t;
 
   Eigen::Matrix3d G_t_x;
@@ -115,13 +106,8 @@ inline
 Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double w_t = u.angular;  // "omega_t", but shorter.
+  double w_t = std::fmax(u.angular, std::numeric_limits<double>::epsilon());
   double theta = x0(2);
-  if (abs(w_t) < 1e-9)
-  {
-    // If we're near zero, clamp it to a tiny value to avoid division by zero.
-    w_t = 1e-9;
-  }
 
   double s_t = sin(theta);
   double c_t = cos(theta);
