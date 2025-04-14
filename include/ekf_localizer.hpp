@@ -63,8 +63,14 @@ inline
 Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double omega_t = std::fmax(u.angular, std::numeric_limits<double>::epsilon());
+  double omega_t = u.angular;
   double theta = x0(2);
+
+  // Avoid div/zero for straight-line trajectories or no motion.
+  if (fabs(omega_t) < std::numeric_limits<double>::epsilon())
+  {
+        omega_t = std::numeric_limits<double>::epsilon();
+  }
 
   // // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
   // // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
@@ -88,8 +94,14 @@ inline
 Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double omega_t = std::fmax(u.angular, std::numeric_limits<double>::epsilon());
+  double omega_t = u.angular;
   double theta = x0(2);
+
+  // Avoid div/zero for straight-line trajectories or no motion.
+  if (fabs(omega_t) < std::numeric_limits<double>::epsilon())
+  {
+    omega_t = std::numeric_limits<double>::epsilon();
+  }
 
   // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
   // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
@@ -106,18 +118,24 @@ inline
 Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double w_t = std::fmax(u.angular, std::numeric_limits<double>::epsilon());
+  double w_t = u.angular;
   double theta = x0(2);
+
+  // Avoid div/zero for straight-line trajectories or no motion.
+  if (fabs(w_t) < std::numeric_limits<double>::epsilon())
+  {
+    w_t = std::numeric_limits<double>::epsilon();
+  }
 
   double s_t = sin(theta);
   double c_t = cos(theta);
   double s_w_t = sin(theta + (w_t * delta_t));
   double c_w_t = cos(theta + (w_t * delta_t));
 
-  double V_0_0 = (1. / w_t) + (-s_t + s_w_t);
-  double V_0_1 = (v_t / w_t * w_t) * s_t  - s_w_t + (v_t / w_t) * c_w_t * delta_t;
+  double V_0_0 = (1. / w_t) * (-s_t + s_w_t);
+  double V_0_1 = (v_t / w_t * w_t) * (s_t  - s_w_t) + (v_t / w_t) * c_w_t * delta_t;
   double V_1_0 = (1. / w_t) * (c_t - c_w_t);
-  double V_1_1 = -(v_t / w_t * w_t) * c_t - c_w_t + (v_t / w_t) * s_w_t * delta_t;
+  double V_1_1 = -(v_t / w_t * w_t) * (c_t - c_w_t) + (v_t / w_t) * s_w_t * delta_t;
   Eigen::MatrixXd V_t(3, 2);
   V_t <<  V_0_0, V_0_1,
           V_1_0, V_1_1,
@@ -152,7 +170,7 @@ public:
     auto V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
     auto R_t = V_t * M_t * V_t.transpose();
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> cov_next = G_t * estimated_state_.covariance * G_t.transpose();
-    cov_next.block<3, 3>(0, 0) += R_t;  // Only update pose covariance.
+    cov_next.block<3, 3>(0, 0) += R_t * dt;  // Only update pose covariance.
     estimated_state_.covariance = cov_next;
 
     return estimated_state_;
