@@ -32,3 +32,30 @@ TEST(EKFLocalizerTest, FilterTest)
 
   // TODO: write a test the verifies that pose.theta unwrapping is correct.
 }
+
+// This test was created to troubleshoot an issue at the start of
+// the project, when we were having trouble with misbehavior in the
+// covariance update. Namely, the pose covariance was blowing up rapidly
+// due to numerical precision problems in the function that calculates
+// the mapping of noise from control space to state space.
+TEST(EKFLocalizerTest, CovPropagationTest)
+{
+  auto filter = ekf_localizer::Ekf();
+  ekf_localizer::TwistCmd u{0.25, 0.0};
+  double dt = 0.033;  // 30 Hz.
+  double covx;
+  const Eigen::Matrix2d control_noise{
+    // Arbitrarily chosen.
+    {0.01, 0.0},  // Linear velocity stdev.
+    {0.0, 0.01},  // Angular velocity stdev.
+  };
+
+  // Run the prediction step through a few iterations
+  // and check that it's not gone insane
+  for (auto i = 0; i < 10; ++i)
+  {
+    ekf_localizer::EkfState next_state = filter.predict(u, dt, control_noise);
+    covx = next_state.covariance(0, 0); // Pose covariance in x.
+  }
+  EXPECT_LT(covx, 1.0);  // Not blowing-up.
+}

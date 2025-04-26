@@ -31,9 +31,15 @@ constexpr size_t STATE_DIMS = POSE_DIMS + LM_DIMS * LANDMARKS_KNOWN;
 constexpr double CMD_VEL_LIN_STDEV_MS = 0.1;  // One-sigma Linear velocity error, meters/s.
 constexpr double CMD_VEL_ANG_STDEV_RADS = 0.1; // One-sigma angular velocity error, radians/s.
 const Eigen::Matrix2d M_t{
-  {CMD_VEL_LIN_STDEV_MS * CMD_VEL_LIN_STDEV_MS, 0.0},
-  {0.0, CMD_VEL_LIN_STDEV_MS * CMD_VEL_LIN_STDEV_MS},
+  {pow(CMD_VEL_LIN_STDEV_MS, 2.), 0.0},
+  {0.0, pow(CMD_VEL_ANG_STDEV_RADS, 2.)},
 };
+
+// We frequently find ourselves dividing by angular velocity, and
+// we frequently find ourselves moving in a straight line, i.e.
+// with an angular velocity of zero. We mitigate this problem by
+// setting a small minimum angular velocity.
+constexpr double MIN_ANG_VEL = 1e-3;  // ~104 minutes to do a 360.
 
 class Measurement;
 using MeasurementList = std::list<Measurement>;
@@ -67,9 +73,9 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
   double theta = x0(2);
 
   // Avoid div/zero for straight-line trajectories or no motion.
-  if (fabs(omega_t) < std::numeric_limits<double>::epsilon())
+  if (fabs(omega_t) < MIN_ANG_VEL)
   {
-        omega_t = std::numeric_limits<double>::epsilon();
+    omega_t = MIN_ANG_VEL;
   }
 
   // // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
@@ -98,9 +104,9 @@ Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
   double theta = x0(2);
 
   // Avoid div/zero for straight-line trajectories or no motion.
-  if (fabs(omega_t) < std::numeric_limits<double>::epsilon())
+  if (fabs(omega_t) < MIN_ANG_VEL)
   {
-    omega_t = std::numeric_limits<double>::epsilon();
+    omega_t = MIN_ANG_VEL;
   }
 
   // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
@@ -122,9 +128,9 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
   double theta = x0(2);
 
   // Avoid div/zero for straight-line trajectories or no motion.
-  if (fabs(w_t) < std::numeric_limits<double>::epsilon())
+  if (fabs(w_t) < MIN_ANG_VEL)
   {
-    w_t = std::numeric_limits<double>::epsilon();
+    w_t = MIN_ANG_VEL;
   }
 
   double s_t = sin(theta);
@@ -151,11 +157,19 @@ public:
   Ekf() = default;
   ~Ekf() = default;
 
-  // Mutates the global EKF state.
+  //
+  // Prediction calls mutate the global EKF state.
+  //
   EkfState predict(const TwistCmd& u, double dt)
   {
+    // Use the global noise config matrix M_t.
+    return predict(u, dt, M_t);
+  }
+
+  EkfState predict(const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t)
+  {
     // Current pose estimate.
-    auto x0 = estimated_state_.mean(Eigen::seqN(0, 3));
+    Eigen::Vector3d x0 = estimated_state_.mean(Eigen::seqN(0, 3));
 
     // Noise-free motion estimate.
     Pose2D predicted_pose = g(u, x0, dt);
@@ -167,10 +181,10 @@ public:
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> G_t;
     G_t.setIdentity();
     G_t.block<3, 3>(0, 0) = G_t_x(u, x0, dt);
-    auto V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
-    auto R_t = V_t * M_t * V_t.transpose();
+    Eigen::Matrix<double, 3, 2> V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
+    Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> cov_next = G_t * estimated_state_.covariance * G_t.transpose();
-    cov_next.block<3, 3>(0, 0) += R_t * dt;  // Only update pose covariance.
+    cov_next.block<3, 3>(0, 0) += R_t * (u.linear / 0.25) * dt; // Only update pose covariance.
     estimated_state_.covariance = cov_next;
 
     return estimated_state_;
@@ -181,7 +195,7 @@ public:
   {
     // Silence unused var warnings for now.
     (void) z;
-    return Ekf::estimated_state_;
+    return estimated_state_;
   }
 
 private:
