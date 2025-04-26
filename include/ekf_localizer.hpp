@@ -41,6 +41,9 @@ const Eigen::Matrix2d M_t{
 // setting a small minimum angular velocity.
 constexpr double MIN_ANG_VEL = 1e-3;  // ~104 minutes to do a 360.
 
+// Need to know this for scaling covariance with velocity.
+constexpr double MAX_VEL_X = 0.25;  // m/s.
+
 class Measurement;
 using MeasurementList = std::list<Measurement>;
 
@@ -184,7 +187,7 @@ public:
     Eigen::Matrix<double, 3, 2> V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
     Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> cov_next = G_t * estimated_state_.covariance * G_t.transpose();
-    cov_next.block<3, 3>(0, 0) += R_t * (u.linear / 0.25) * dt; // Only update pose covariance.
+    cov_next.block<3, 3>(0, 0) += R_t * (u.linear / MAX_VEL_X) * dt; // Only update pose covariance.
     estimated_state_.covariance = cov_next;
 
     return estimated_state_;
