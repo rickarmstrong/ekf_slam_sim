@@ -3,7 +3,6 @@
 #define EKF_LOCALIZER_HPP
 #include <cmath>
 #include <chrono>
-#include <limits>
 
 #include <Eigen/Dense>
 

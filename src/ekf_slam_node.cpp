@@ -1,9 +1,12 @@
 // Copyright (c) 2025 Richard Armstrong
+#include <mutex>
+#include <thread>
 #include "nav_msgs/msg/odometry.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_ros/transform_broadcaster.h"
 
 # include "ekf_localizer.hpp"
+# include "utility.hpp"
 using Ekf = ekf_localizer::Ekf;
 
 constexpr size_t QOS_HISTORY_DEPTH = 10;
@@ -28,9 +31,18 @@ public:
 
 private:
   Ekf filter_;
+
+  // Odom messages.
   time_point last_odom_time_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+
+  // Tag detection messages.
+  TagArray last_tag_detection_;
+  time_point last_tag_detection_time_;
   rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
+  std::mutex tag_detection_msg_mutex_;
+
+  // Publishers.
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
@@ -58,6 +70,14 @@ private:
     tf_broadcaster_->sendTransform(t);
   }
 
+  /**
+   * @brief Odometry message handler that drives the predict/correct cycle.
+   *
+   * Our odometry updates are the highest-rate message, so we'll use them as our "clock signal".
+   *
+   * @param[in] msg  nav_msgs::msg::Odometry::SharedPtr&, a velocity command with
+   * linear and angular components.
+   */
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
   {
     // If this is our first odom message, we can't calculate dt, so
@@ -68,10 +88,29 @@ private:
       return;
     }
 
-    ekf_localizer::TwistCmd u{msg->twist.twist.linear.x, msg->twist.twist.angular.z};
-    double dt = double_seconds(steady_clock::now() - last_odom_time_).count();
+    // Read-in our velocity command.
+    const ekf_localizer::TwistCmd u{msg->twist.twist.linear.x, msg->twist.twist.angular.z};
+
+    // Calculate the time delta and predict our next state based solely on our motion model.
+    const double dt = double_seconds(steady_clock::now() - last_odom_time_).count();
     auto next = filter_.predict(u, dt);
     last_odom_time_ = steady_clock::now();
+
+    // Check for a new landmark observation.
+    bool new_observation = false;
+    {
+      std::scoped_lock lock(tag_detection_msg_mutex_);
+      if (to_std_time(last_tag_detection_.header.stamp) > last_tag_detection_time_)
+      {
+        last_tag_detection_time_ = to_std_time(last_tag_detection_.header.stamp);
+        TagArray tag_detections = last_tag_detection_;
+        new_observation = true;
+      }
+    }
+    if (new_observation)
+    {
+      // Correct.
+    }
 
     publish_pose(next.mean(Eigen::seqN(0, 3)), next.covariance.block<3, 3>(0, 0));
     broadcast_pose_as_tf(next.mean(Eigen::seqN(0, 3)));
@@ -114,6 +153,9 @@ private:
 
   void tag_detection_cb(const TagArray::SharedPtr& msg)
   {
+    std::scoped_lock lock(tag_detection_msg_mutex_);
+    last_tag_detection_ = *msg;
+
     RCLCPP_INFO_STREAM_THROTTLE(
       this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
   }

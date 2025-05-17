@@ -22,7 +22,8 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
-add_executable(ekf_slam src/ekf_slam_node.cpp)
+add_executable(ekf_slam src/ekf_slam_node.cpp
+        include/utility.hpp)
 ament_target_dependencies(ekf_slam PUBLIC
         rclcpp
         std_msgs
