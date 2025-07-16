@@ -208,7 +208,18 @@ class Measurement final
 {
 public:
   Measurement() = default;
+  Measurement(const Measurement&) = default;
+  Measurement(Measurement&&) = default;
+  Measurement(double x, double y): x_(x), y_(y) {}
+  Measurement(const TagDetection& td): x_(td.pose.pose.pose.position.x), y_(td.pose.pose.pose.position.y) {}
+  Measurement& operator=(const Measurement&) = default;
+  Measurement& operator=(Measurement&&) = default;
+
   ~Measurement() = default;
+
+private:
+  double x_;
+  double y_;
 };
 
 }

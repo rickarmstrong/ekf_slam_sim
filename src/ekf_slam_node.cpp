@@ -103,13 +103,21 @@ private:
       if (to_std_time(last_tag_detection_.header.stamp) > last_tag_detection_time_)
       {
         last_tag_detection_time_ = to_std_time(last_tag_detection_.header.stamp);
-        TagArray tag_detections = last_tag_detection_;
         new_observation = true;
       }
     }
     if (new_observation)
     {
       // Correct.
+      std::stringstream ss;
+      ss << "odom_cb(): observed tag ids:  ";
+      for (const TagDetection& d: last_tag_detection_.detections)
+      {
+        ss << d.id[0] << ", ";
+      }
+      RCLCPP_INFO_STREAM_THROTTLE(this->get_logger(), *this->get_clock(), 1000, ss.str());
+
+      filter_.correct(to_measurements(last_tag_detection_));
     }
 
     publish_pose(next.mean(Eigen::seqN(0, 3)), next.covariance.block<3, 3>(0, 0));
