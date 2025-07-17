@@ -1,5 +1,5 @@
 set(TEST_NAMES
-  ekf_localizer_tests
+  ekf_localizer_tests utility_tests
 )
 
 foreach(name IN LISTS TEST_NAMES)
