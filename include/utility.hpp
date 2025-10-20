@@ -9,6 +9,26 @@ using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
 
 using Measurement = ekf_localizer::Measurement;
+
+inline Eigen::Vector2d
+sensor_to_map(Eigen::Vector2d p, ekf_localizer::Pose2D x_t)
+{
+  // Construct the homogeneous transformation.
+  double theta = x_t[2];
+  double ct = cos(theta);
+  double st = sin(theta);
+  Eigen::Matrix3d m_T_b;
+  m_T_b <<  ct, -st, x_t[0],
+            st, ct, x_t[1],
+            0., 0., 1.;
+
+  // Homogeneous representation of p.
+  Eigen::Vector3d p_homo;
+  p_homo << p, 1.;
+
+  return (m_T_b * p_homo).head(2).eval();
+}
+
 /**
  * @brief Convenience function to turn a message header timestamp to a std::chrono::time_point.
  * @param ros_time timestamp from a ROS2 message header.
