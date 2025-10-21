@@ -161,8 +161,19 @@ private:
 
   void tag_detection_cb(const TagArray::SharedPtr& msg)
   {
-    std::scoped_lock lock(tag_detection_msg_mutex_);
-    last_tag_detection_ = *msg;
+    {
+      std::scoped_lock lock(tag_detection_msg_mutex_);
+      last_tag_detection_ = *msg;
+    }
+    for (TagDetection d: last_tag_detection_.detections)
+    {
+      if (d.id.size() > 1)
+      {
+        RCLCPP_WARN_STREAM_THROTTLE(
+          this->get_logger(), *this->get_clock(), 1000,  "Warning: tag bundle detected. Tag bundles are not supported "
+          "and may result in erroneous measurements.");
+      }
+    }
 
     RCLCPP_INFO_STREAM_THROTTLE(
       this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
