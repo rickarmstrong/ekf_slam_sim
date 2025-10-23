@@ -8,6 +8,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "measurement.hpp"
+#include "utility.hpp"
 
 // Aliases to reduce the name noise.
 using double_seconds = std::chrono::duration<double>;
@@ -15,7 +16,6 @@ using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
 
 namespace ekf_localizer {
-using Pose2D = Eigen::Vector3d;  // x, y, theta
 
 constexpr size_t POSE_DIMS = 3;     // x, y, theta.
 constexpr size_t LM_DIMS = 2;       // x, y.
@@ -208,7 +208,7 @@ public:
       if (landmarks.row(z.id)(0) == 0. &&  landmarks.row(z.id)(1) == 0.)
       {
         // TODO: implement sensor_to_map().
-//        landmarks.row(z.id) = sensor_to_map(z, )
+//        landmarks.row(z.id) = sensor_to_map(Eigen::Vector2d(z.x, z.y), ;
       }
     }
 

@@ -3,7 +3,6 @@
 #define UTILITY_HPP
 #include <chrono>
 #include <list>
-#include "ekf_localizer.hpp"
 #include "measurement.hpp"
 
 using steady_clock = std::chrono::steady_clock;
