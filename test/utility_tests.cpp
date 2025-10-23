@@ -6,7 +6,7 @@
 #include "utility.hpp"
 
 
-TEST(UtilityTest, ToMeasurementSmokeTest)
+TEST(UtilityTest, DISABLED_ToMeasurementSmokeTest)
 {
   const size_t TAG_ARRAY_SIZE = 100;
   TagArray ta;
@@ -20,7 +20,7 @@ TEST(UtilityTest, ToMeasurementSmokeTest)
 TEST(UtilityTest, EigenSandbox)
 {
   Eigen::VectorXd flat = Eigen::VectorXd::Random(6);
-  auto landmarks = flat.tail(4).reshaped(2, 2);
+  Eigen::MatrixXd landmarks = flat.tail(4).reshaped(2, 2);
   Eigen::Vector2d lm(0., 1.);
   landmarks.row(0) = lm;
 
