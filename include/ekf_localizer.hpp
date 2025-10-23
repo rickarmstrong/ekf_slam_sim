@@ -5,9 +5,7 @@
 #include <chrono>
 
 #include <Eigen/Dense>
-
 #include "rclcpp/rclcpp.hpp"
-
 #include "apriltag_ros_interfaces/msg/april_tag_detection.hpp"
 #include "apriltag_ros_interfaces/msg/april_tag_detection_array.hpp"
 
@@ -65,6 +63,28 @@ struct TwistCmd
     :linear(linear), angular(angular) {}
   double linear;
   double angular;
+};
+
+class Measurement final
+{
+public:
+  // Prevent default construction.
+  Measurement(double x, double y, unsigned id): x(x), y(y), id(id) {}
+  explicit Measurement(const TagDetection& td)
+  {
+    if (td.id.size() != 1)
+    {
+      throw std::invalid_argument("TagDetection must have exactly one id. Tag bundles and empty tag ids "
+                                  "are not supported.");
+    }
+    x = td.pose.pose.pose.position.x;
+    y = td.pose.pose.pose.position.y;
+    id = td.id[0];
+  }
+
+  double x;
+  double y;
+  unsigned id;
 };
 
 inline
@@ -192,35 +212,36 @@ public:
     return estimated_state_;
   }
 
-  // Mutates the global EKF state.
-  EkfState correct(MeasurementList z)
+  static decltype(auto) get_pose()
   {
-    // Silence unused var warnings for now.
-    (void) z;
+    return estimated_state_.mean.head(POSE_DIMS);
+  }
+
+  static decltype(auto) get_landmarks()
+  {
+    return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
+  }
+
+  // Mutates the global EKF state.
+  EkfState correct(MeasurementList z_k)
+  {
+    Eigen::MatrixXd landmarks = get_landmarks();
+    for (Measurement z: z_k)
+    {
+      // If this is the first time we've seen this tag,
+      // initialize our landmark estimate with this measurement.
+      if (landmarks.row(z.id)(0) == 0. &&  landmarks.row(z.id)(1) == 0.)
+      {
+        // TODO: implement sensor_to_map().
+//        landmarks.row(z.id) = sensor_to_map(z, )
+      }
+    }
+
     return estimated_state_;
   }
 
 private:
   inline static auto estimated_state_ = EkfState();
 };
-
-class Measurement final
-{
-public:
-  Measurement() = default;
-  Measurement(const Measurement&) = default;
-  Measurement(Measurement&&) = default;
-  Measurement(double x, double y): x_(x), y_(y) {}
-  Measurement(const TagDetection& td): x_(td.pose.pose.pose.position.x), y_(td.pose.pose.pose.position.y) {}
-  Measurement& operator=(const Measurement&) = default;
-  Measurement& operator=(Measurement&&) = default;
-
-  ~Measurement() = default;
-
-private:
-  double x_;
-  double y_;
-};
-
 }
 #endif //EKF_LOCALIZER_HPP
