@@ -6,15 +6,13 @@
 
 #include <Eigen/Dense>
 #include "rclcpp/rclcpp.hpp"
-#include "apriltag_ros_interfaces/msg/april_tag_detection.hpp"
-#include "apriltag_ros_interfaces/msg/april_tag_detection_array.hpp"
+
+#include "measurement.hpp"
 
 // Aliases to reduce the name noise.
 using double_seconds = std::chrono::duration<double>;
 using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
-using TagDetection = apriltag_ros_interfaces::msg::AprilTagDetection;
-using TagArray = apriltag_ros_interfaces::msg::AprilTagDetectionArray;
 
 namespace ekf_localizer {
 using Pose2D = Eigen::Vector3d;  // x, y, theta
@@ -41,7 +39,6 @@ constexpr double MIN_ANG_VEL = 1e-3;  // ~104 minutes to do a 360.
 // Need to know this for scaling covariance with velocity.
 constexpr double MAX_VEL_X = 0.25;  // m/s.
 
-class Measurement;
 using MeasurementList = std::list<Measurement>;
 
 struct EkfState {
@@ -63,28 +60,6 @@ struct TwistCmd
     :linear(linear), angular(angular) {}
   double linear;
   double angular;
-};
-
-class Measurement final
-{
-public:
-  // Prevent default construction.
-  Measurement(double x, double y, unsigned id): x(x), y(y), id(id) {}
-  explicit Measurement(const TagDetection& td)
-  {
-    if (td.id.size() != 1)
-    {
-      throw std::invalid_argument("TagDetection must have exactly one id. Tag bundles and empty tag ids "
-                                  "are not supported.");
-    }
-    x = td.pose.pose.pose.position.x;
-    y = td.pose.pose.pose.position.y;
-    id = td.id[0];
-  }
-
-  double x;
-  double y;
-  unsigned id;
 };
 
 inline

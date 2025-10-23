@@ -4,11 +4,10 @@
 #include <chrono>
 #include <list>
 #include "ekf_localizer.hpp"
+#include "measurement.hpp"
 
 using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
-
-using Measurement = ekf_localizer::Measurement;
 
 inline Eigen::Vector2d
 sensor_to_map(Eigen::Vector2d p, ekf_localizer::Pose2D x_t)
@@ -49,12 +48,12 @@ to_std_time(const builtin_interfaces::msg::Time& ros_time)
 inline std::list<ekf_localizer::Measurement>
 to_measurements(const TagArray& ta)
 {
-  std::list<Measurement> measurements;
+  std::list<ekf_localizer::Measurement> measurements;
   std::transform(
     ta.detections.begin(),
     ta.detections.end(),
     std::back_inserter(measurements),
-    [](const auto& d){ return Measurement(d); });
+    [](const auto& d){ return ekf_localizer::Measurement(d); });
   return measurements;;
 }
 #endif //UTILITY_HPP

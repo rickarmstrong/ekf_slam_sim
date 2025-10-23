@@ -23,7 +23,11 @@ include_directories(
 )
 
 add_executable(ekf_slam src/ekf_slam_node.cpp
-        include/utility.hpp)
+        include/utility.hpp
+        src/measurement.cpp
+        include/measurement.hpp
+        include/types.hpp
+)
 ament_target_dependencies(ekf_slam PUBLIC
         rclcpp
         std_msgs
