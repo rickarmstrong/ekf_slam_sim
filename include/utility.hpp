@@ -45,7 +45,7 @@ to_std_time(const builtin_interfaces::msg::Time& ros_time)
  * @return
  */
 inline std::list<ekf_localizer::Measurement>
-to_measurements(const TagArray& ta)
+to_measurements(const ekf_localizer::TagArray& ta)
 {
   std::list<ekf_localizer::Measurement> measurements;
   std::transform(

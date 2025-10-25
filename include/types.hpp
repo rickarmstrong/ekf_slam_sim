@@ -5,11 +5,10 @@
 #include "apriltag_ros_interfaces/msg/april_tag_detection.hpp"
 #include "apriltag_ros_interfaces/msg/april_tag_detection_array.hpp"
 
-using TagDetection = apriltag_ros_interfaces::msg::AprilTagDetection;
-using TagArray = apriltag_ros_interfaces::msg::AprilTagDetectionArray;
-
 namespace ekf_localizer
 {
+  using TagDetection = apriltag_ros_interfaces::msg::AprilTagDetection;
+  using TagArray = apriltag_ros_interfaces::msg::AprilTagDetectionArray;
   using Pose2D = Eigen::Vector3d;  // x, y, theta
 }
 

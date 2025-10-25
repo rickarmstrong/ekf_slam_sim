@@ -10,10 +10,10 @@ TEST(UtilityTest, ToMeasurementSmokeTest)
 {
   // Generate an array of tag detections.
   const int TAG_ARRAY_SIZE = 100;
-  TagArray ta;
+  ekf_localizer::TagArray ta;
   for (int i = 0; i < TAG_ARRAY_SIZE; ++i)
   {
-    TagDetection d;
+    ekf_localizer::TagDetection d;
     d.id =  std::vector<int> {i};
     d.pose.pose.pose.position.x = i;
     d.pose.pose.pose.position.y = i;
