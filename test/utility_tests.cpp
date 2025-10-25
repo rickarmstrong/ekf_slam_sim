@@ -6,14 +6,22 @@
 #include "utility.hpp"
 
 
-TEST(UtilityTest, DISABLED_ToMeasurementSmokeTest)
+TEST(UtilityTest, ToMeasurementSmokeTest)
 {
-  const size_t TAG_ARRAY_SIZE = 100;
+  // Generate an array of tag detections.
+  const int TAG_ARRAY_SIZE = 100;
   TagArray ta;
-  for (size_t i = 0; i < TAG_ARRAY_SIZE; ++i) { ta.detections.emplace_back(); }
+  for (int i = 0; i < TAG_ARRAY_SIZE; ++i)
+  {
+    TagDetection d;
+    d.id =  std::vector<int> {i};
+    d.pose.pose.pose.position.x = i;
+    d.pose.pose.pose.position.y = i;
+    d.pose.pose.pose.position.z = i;
+    ta.detections.push_back(d);
+  }
 
   ekf_localizer::MeasurementList measurements = to_measurements(ta);
-
   ASSERT_EQ(measurements.size(), TAG_ARRAY_SIZE);
 }
 
