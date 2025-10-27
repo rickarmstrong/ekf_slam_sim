@@ -15,18 +15,18 @@ find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(apriltag_ros_interfaces REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(tf2_ros)
+find_package(tf2_ros REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 include_directories(
   include
   ${EIGEN3_INCLUDE_DIR}
 )
 
-add_executable(ekf_slam src/ekf_slam_node.cpp
-        include/utility.hpp
+add_executable(ekf_slam
+        src/ekf_slam_node.cpp
         src/measurement.cpp
-        include/measurement.hpp
-        include/types.hpp
 )
 ament_target_dependencies(ekf_slam PUBLIC
         rclcpp
@@ -34,7 +34,9 @@ ament_target_dependencies(ekf_slam PUBLIC
         nav_msgs
         apriltag_ros_interfaces
         Eigen3
-        tf2_ros)
+        tf2_ros
+        visualization_msgs
+        geometry_msgs)
 
 install(TARGETS ekf_slam
   DESTINATION lib/${PROJECT_NAME})
