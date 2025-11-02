@@ -172,7 +172,7 @@ public:
     Pose2D predicted_pose = g(u, x0, dt);
 
     // Update pose.
-    estimated_state_.mean(Eigen::seqN(0, 3)) = predicted_pose;
+    estimated_state_.mean.head(POSE_DIMS) = predicted_pose;
 
     // Update pose covariance.
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> G_t;
@@ -197,6 +197,11 @@ public:
     return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
   }
 
+  static void set_landmark(unsigned id, const Eigen::Vector2d& landmark)
+  {
+    estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS).row(id) = landmark;
+  }
+
   // Mutates the global EKF state.
   EkfState correct(MeasurementList z_k)
   {
@@ -207,8 +212,7 @@ public:
       // initialize our landmark estimate with this measurement.
       if (landmarks.row(z.id)(0) == 0. &&  landmarks.row(z.id)(1) == 0.)
       {
-        // TODO: implement sensor_to_map().
-//        landmarks.row(z.id) = sensor_to_map(Eigen::Vector2d(z.x, z.y), ;
+        set_landmark(z.id, sensor_to_map(Eigen::Vector2d(z.x, z.y), get_pose()));
       }
     }
 
