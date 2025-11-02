@@ -18,8 +18,8 @@ public:
     : Node("ekf_localizer")
   {
     // A tag array contains all currently-detected TagDetections.
-    tag_detections_sub_ = this->create_subscription<TagArray>(
-      "tag_detections", QOS_HISTORY_DEPTH, [this](const TagArray::SharedPtr msg){ tag_detection_cb(msg); });
+    tag_detections_sub_ = this->create_subscription<ekf_localizer::TagArray>(
+      "tag_detections", QOS_HISTORY_DEPTH, [this](const ekf_localizer::TagArray::SharedPtr msg){ tag_detection_cb(msg); });
 
     // Odometry messages, from which we will use velocities and treat them as control.
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -37,9 +37,9 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
   // Tag detection messages.
-  TagArray last_tag_detection_;
+  ekf_localizer::TagArray last_tag_detection_;
   time_point last_tag_detection_time_;
-  rclcpp::Subscription<TagArray>::SharedPtr tag_detections_sub_;
+  rclcpp::Subscription<ekf_localizer::TagArray>::SharedPtr tag_detections_sub_;
   std::mutex tag_detection_msg_mutex_;
 
   // Publishers.
@@ -111,7 +111,7 @@ private:
       // Correct.
       std::stringstream ss;
       ss << "odom_cb(): observed tag ids:  ";
-      for (const TagDetection& d: last_tag_detection_.detections)
+      for (const ekf_localizer::TagDetection& d: last_tag_detection_.detections)
       {
         ss << d.id[0] << ", ";
       }
@@ -159,13 +159,13 @@ private:
     pose_pub_->publish(msg);
   }
 
-  void tag_detection_cb(const TagArray::SharedPtr& msg)
+  void tag_detection_cb(const ekf_localizer::TagArray::SharedPtr& msg)
   {
     {
       std::scoped_lock lock(tag_detection_msg_mutex_);
       last_tag_detection_ = *msg;
     }
-    for (TagDetection d: last_tag_detection_.detections)
+    for (ekf_localizer::TagDetection d: last_tag_detection_.detections)
     {
       if (d.id.size() > 1)
       {
