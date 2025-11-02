@@ -187,12 +187,12 @@ public:
     return estimated_state_;
   }
 
-  static decltype(auto) get_pose()
+  static Eigen::Vector<double, POSE_DIMS> get_pose()
   {
     return estimated_state_.mean.head(POSE_DIMS);
   }
 
-  static decltype(auto) get_landmarks()
+  static Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks()
   {
     return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
   }
