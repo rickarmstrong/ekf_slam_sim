@@ -187,19 +187,27 @@ public:
     return estimated_state_;
   }
 
-  static Eigen::Vector<double, POSE_DIMS> get_pose()
+  /**
+  * @brief Returns a copy of just the pose part of the state vector.
+  */
+  [[nodiscard]] Eigen::Vector<double, POSE_DIMS> get_pose() const
   {
-    return estimated_state_.mean.head(POSE_DIMS);
+    return get_pose_();
   }
 
-  static Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks()
+ /**
+ * @brief Returns a copy of just the landmarks part of the (flat) state
+ * vector, reshaped to look like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
+ */
+  [[nodiscard]] Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks() const
   {
-    return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
+    return get_landmarks_().eval();
   }
 
-  static void set_landmark(unsigned id, const Eigen::Vector2d& landmark)
+  // Mutates the global EKF state.
+  void set_landmark(unsigned id, const Eigen::Vector2d& landmark)
   {
-    estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS).row(id) = landmark;
+    get_landmarks_().row(id) = landmark;
   }
 
   // Mutates the global EKF state.
@@ -220,7 +228,25 @@ public:
   }
 
 private:
-  inline static auto estimated_state_ = EkfState();
+  inline static EkfState estimated_state_ = EkfState();
+
+  /**
+  * @brief Returns a writable view on the (flat) state vector, reshaped to look
+  * like a vector of length POSE_DIMS.
+  */
+  static Eigen::VectorBlock<Eigen::Matrix<double, -1, 1>> get_pose_()
+  {
+    return estimated_state_.mean.head(POSE_DIMS);
+  }
+
+  /**
+  * @brief Returns a writable view on the (flat) state vector, reshaped to look
+  * like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
+  */
+  static  Eigen::Reshaped<Eigen::Block<Eigen::Matrix<double, -1, 1>, -1, 1>> get_landmarks_()
+  {
+    return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
+  }
 };
-}
+}  // namespace ekf_localizer
 #endif //EKF_LOCALIZER_HPP
