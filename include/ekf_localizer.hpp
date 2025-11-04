@@ -151,9 +151,6 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
 class Ekf final
 {
 public:
-  Ekf() = default;
-  ~Ekf() = default;
-
   //
   // Prediction calls mutate the global EKF state.
   //
