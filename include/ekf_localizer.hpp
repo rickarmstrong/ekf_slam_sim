@@ -45,8 +45,16 @@ struct EkfState {
   EkfState()
     :mean(STATE_DIMS), covariance(STATE_DIMS, STATE_DIMS)
   {
+    // We assume we start at (0, 0), so this makes sense for our pose.
+    // We set landmarks to (0, 0) to mark them as uninitialized.
     mean.setZero();
+
+    // Pose covariance starts at zero, because we know our initial location.
+    // Landmark variances start at "infinity", which we fake by initializing
+    // them to arbitrary "big number".
     covariance.setZero();
+    covariance.block<LANDMARKS_KNOWN * LM_DIMS, LANDMARKS_KNOWN * LM_DIMS>(3, 3) =
+      Eigen::MatrixXd::Identity(LANDMARKS_KNOWN * LM_DIMS, LANDMARKS_KNOWN * LM_DIMS) * 1e6;
   }
 
   Eigen::VectorXd mean;
