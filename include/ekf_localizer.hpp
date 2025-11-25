@@ -125,6 +125,16 @@ Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
   return G_t_x;
 }
 
+/**
+ * @brief Return the Jacobian of the function that maps control space noise (v_t, omega_t) to state space (x, y, theta).
+ * From Probabilistic Robotics, ch. 7.4, eq. 7.11: this is "the derivative of the motion function g w.r.t. the motion
+ * parameters, evaluated at u_t, and mu_t-1.".
+ *
+ * @param u current control input (linear and angular velocity).
+ * @param x0 current robot pose, of which we use only theta.
+ * @param delta_t time step.
+ * @return 3x2 matrix.
+ */
 inline
 Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
