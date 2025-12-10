@@ -40,6 +40,7 @@ constexpr double MIN_ANG_VEL = 1e-3;  // ~104 minutes to do a 360.
 constexpr double MAX_VEL_X = 0.25;  // m/s.
 
 using MeasurementList = std::list<Measurement>;
+using SensorJacobian = Eigen::Matrix<double, LM_DIMS, POSE_DIMS + LM_DIMS>;
 
 struct EkfState {
   EkfState()
@@ -123,6 +124,32 @@ Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
             0.0, 1.0, -r * sin(theta) + r * sin(theta + (omega_t * delta_t)),
             0.0, 0.0, 1.0;
   return G_t_x;
+}
+
+/**
+ * @brief Return the Jacobian of the (cartesian) sensor model h(x), w.r.t the robot pose and a landmark.
+ * @param x_t pose of the robot at time t.
+ * @param lm  position of a landmark.
+ * @return Matrix with dimensions (LM_DIMS) x (POSE_DIMS + LM_DIMS).
+ */
+inline
+ekf_localizer::SensorJacobian H_i_t(ekf_localizer::Pose2D x_t, Eigen::Vector2d lm)
+{
+  double theta = x_t(2);
+  double H_0_0 = -cos(theta);
+  double H_0_1 = -sin(theta);
+  double H_0_2 = -lm[0] * sin(theta) + lm[1] * cos(theta) + x_t[0] * sin(theta) + x_t[1] * cos(theta);
+  double H_0_3 =  cos(theta);
+  double H_0_4 =  sin(theta);
+  double H_1_0 = sin(theta);
+  double H_1_1 = -cos(theta);
+  double H_1_2 =  -lm[0] * cos(theta) - lm[1] * sin(theta) + x_t[0] * cos(theta) + x_t[1] * sin(theta);
+  double H_1_3 =  -sin(theta);
+  double H_1_4 =  cos(theta);
+  ekf_localizer::SensorJacobian H;
+  H <<  H_0_0, H_0_1, H_0_2, H_0_3, H_0_4,
+        H_1_0, H_1_1, H_1_2, H_1_3, H_1_4;
+  return H;
 }
 
 /**

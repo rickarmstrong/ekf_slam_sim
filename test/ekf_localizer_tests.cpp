@@ -59,3 +59,11 @@ TEST(EKFLocalizerTest, CovPropagationTest)
   }
   EXPECT_LT(covx, 1.0);  // Not blowing-up.
 }
+
+TEST(EkfLocalizerTest, SensorJacobianTest)
+{
+  ekf_localizer::Pose2D x_t{0.0, 0.0, 0.0};
+  Eigen::Vector2d lm{1.0, 0.0};
+  ekf_localizer::SensorJacobian h = ekf_localizer::H_i_t(x_t, lm);
+  double h_0_0 = h(0, 0);
+}
