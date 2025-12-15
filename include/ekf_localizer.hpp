@@ -30,7 +30,15 @@ const Eigen::Matrix2d M_t{
   {0.0, pow(CMD_VEL_ANG_STDEV_RADS, 2.)},
 };
 
-// We frequently find ourselves dividing by angular velocity, and
+// Measurement noise, stdev of cartesian (x, y) measurement noise.
+constexpr double MEASUREMENT_STDEVX_M = 0.1;
+constexpr double MEASUREMENT_STDEVY_M = 0.1;
+const Eigen::Matrix2d Q_t{
+  {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
+  {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
+};
+
+  // We frequently find ourselves dividing by angular velocity, and
 // we frequently find ourselves moving in a straight line, i.e.
 // with an angular velocity of zero. We mitigate this problem by
 // setting a small minimum angular velocity.
@@ -264,6 +272,25 @@ public:
       {
         set_landmark(z.id, sensor_to_map(Eigen::Vector2d(z.x, z.y), get_pose()));
       }
+
+      // Get the low-dimensional Jacobian of the measurement.
+      SensorJacobian h = H_i_t(get_pose(), Eigen::Vector2d(z.x, z.y));
+
+      // "Promote" h to the full-size Jacobian, H_t.
+      Eigen::Matrix<double, LM_DIMS, STATE_DIMS> H_t;
+      H_t.setZero();
+      H_t.block<LM_DIMS, POSE_DIMS>(0, 0) = h.block<LM_DIMS, POSE_DIMS>(0, 0);
+      H_t.block<LM_DIMS, LM_DIMS>(0, POSE_DIMS + z.id * LM_DIMS) = h.block<LM_DIMS, LM_DIMS>(0, POSE_DIMS);
+
+      // Kalman gain, dimensions (2N+3, 2), where N is the number of landmarks.
+      // (2N+3, 2) = (2N+3,2N+3) @ (2N+3, 2) @ ((2, 2N+3) @ (2N+3, 2N+3) @ (2N+3, 2) + (2, 2))^-1
+      const Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>& S_bar = estimated_state_.covariance;  // Reduce clutter a little.
+      Eigen::Matrix<double, 2 * LANDMARKS_KNOWN + POSE_DIMS, LM_DIMS> K_i_t;
+      K_i_t.setZero();
+      K_i_t = (S_bar * H_t.transpose()) * (H_t * S_bar * H_t.transpose() + Q_t).inverse();
+
+      // Update state and covariance estimates for this observation.
+
     }
 
     return estimated_state_;
