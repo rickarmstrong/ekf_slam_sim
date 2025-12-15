@@ -133,7 +133,7 @@ Eigen::Matrix3d G_t_x(const TwistCmd& u, const Pose2D& x0, double delta_t)
  * @return Matrix with dimensions (LM_DIMS) x (POSE_DIMS + LM_DIMS).
  */
 inline
-ekf_localizer::SensorJacobian H_i_t(ekf_localizer::Pose2D x_t, Eigen::Vector2d lm)
+SensorJacobian H_i_t(Pose2D x_t, Eigen::Vector2d lm)
 {
   double theta = x_t(2);
   double H_0_0 = -cos(theta);
@@ -146,7 +146,7 @@ ekf_localizer::SensorJacobian H_i_t(ekf_localizer::Pose2D x_t, Eigen::Vector2d l
   double H_1_2 =  -lm[0] * cos(theta) - lm[1] * sin(theta) + x_t[0] * cos(theta) + x_t[1] * sin(theta);
   double H_1_3 =  -sin(theta);
   double H_1_4 =  cos(theta);
-  ekf_localizer::SensorJacobian H;
+  SensorJacobian H;
   H <<  H_0_0, H_0_1, H_0_2, H_0_3, H_0_4,
         H_1_0, H_1_1, H_1_2, H_1_3, H_1_4;
   return H;
