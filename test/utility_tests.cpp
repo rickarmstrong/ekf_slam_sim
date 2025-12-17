@@ -35,6 +35,39 @@ TEST(UtilityTest, EigenSandbox)
   ASSERT_EQ(1, 1);
 }
 
+TEST(UtilityTest, MapToSensorTest)
+{
+  // A point on the map y-axis.
+  Eigen::Vector2d p_map(0., 1.);
+
+  // Sensor at origin, looking down the x-axis.
+  ekf_localizer::Pose2D x_t(0., 0., 0);
+  Eigen::Vector2d expected(0., 1.);  // Expected sensor frame result.
+  Eigen::Vector2d actual = map_to_sensor(p_map, x_t);
+  ASSERT_EQ(expected, actual);
+
+  // Sensor at (1, 1, pi), looking at the point down the sensor x-axis.
+  x_t = ekf_localizer::Pose2D(1., 1., std::numbers::pi);
+  expected = Eigen::Vector2d(1., 0.);  // Expected sensor frame result.
+  actual = map_to_sensor(p_map, x_t);
+  ASSERT_NEAR(actual[0], expected[0], std::numeric_limits<double>::epsilon());
+  ASSERT_NEAR(actual[1], expected[1], std::numeric_limits<double>::epsilon());
+
+  // Sensor at (1, 0, 0), no rotation.
+  x_t = ekf_localizer::Pose2D(1., 0., 0.);
+  expected = Eigen::Vector2d(-1., 1.);
+  actual = map_to_sensor(p_map, x_t);
+  ASSERT_NEAR(actual[0], expected[0], std::numeric_limits<double>::epsilon());
+  ASSERT_NEAR(actual[1], expected[1], std::numeric_limits<double>::epsilon());
+
+  // Sensor at (-1, 0, pi/4), looking at the point.
+  x_t = ekf_localizer::Pose2D(-1., 0., std::numbers::pi / 4.);
+  expected = Eigen::Vector2d(sqrt(2.), 0.);
+  actual = map_to_sensor(p_map, x_t);
+  ASSERT_NEAR(actual[0], expected[0], std::numeric_limits<double>::epsilon());
+  ASSERT_NEAR(actual[1], expected[1], std::numeric_limits<double>::epsilon());
+}
+
 TEST(UtilityTest, SensorToMapTest)
 {
   // Sensor at (1, 1), no rotation.
