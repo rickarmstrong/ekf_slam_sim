@@ -23,22 +23,22 @@ constexpr size_t LANDMARKS_KNOWN = 16;  // The number of tags defined in config/
 constexpr size_t STATE_DIMS = POSE_DIMS + LM_DIMS * LANDMARKS_KNOWN;
 
 // Process noise params, expressed as control noise. Will be mapped to state space at runtime.
-constexpr double CMD_VEL_LIN_STDEV_MS = 0.1;  // One-sigma Linear velocity error, meters/s.
-constexpr double CMD_VEL_ANG_STDEV_RADS = 0.1; // One-sigma angular velocity error, radians/s.
+constexpr double CMD_VEL_LIN_STDEV_MS = 0.001;  // One-sigma Linear velocity error, meters/s.
+constexpr double CMD_VEL_ANG_STDEV_RADS = 0.001; // One-sigma angular velocity error, radians/s.
 const Eigen::Matrix2d M_t{
   {pow(CMD_VEL_LIN_STDEV_MS, 2.), 0.0},
   {0.0, pow(CMD_VEL_ANG_STDEV_RADS, 2.)},
 };
 
 // Measurement noise, stdev of cartesian (x, y) measurement noise.
-constexpr double MEASUREMENT_STDEVX_M = 0.1;
-constexpr double MEASUREMENT_STDEVY_M = 0.1;
+constexpr double MEASUREMENT_STDEVX_M = 0.01;
+constexpr double MEASUREMENT_STDEVY_M = 0.01;
 const Eigen::Matrix2d Q_t{
   {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
   {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
 };
 
-  // We frequently find ourselves dividing by angular velocity, and
+// We frequently find ourselves dividing by angular velocity, and
 // we frequently find ourselves moving in a straight line, i.e.
 // with an angular velocity of zero. We mitigate this problem by
 // setting a small minimum angular velocity.
@@ -92,8 +92,8 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
     omega_t = MIN_ANG_VEL;
   }
 
-  // // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
-  // // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
+  // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
+  // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
   double r = v_t / omega_t;
 
   // Pose delta.
@@ -263,11 +263,11 @@ public:
   // Mutates the global EKF state.
   EkfState correct(MeasurementList z_k)
   {
-    Eigen::MatrixXd landmarks = get_landmarks();
     for (Measurement z: z_k)
     {
       // If this is the first time we've seen this tag,
       // initialize our landmark estimate with this measurement.
+      Eigen::MatrixXd landmarks = get_landmarks();
       if (landmarks.row(z.id)(0) == 0. &&  landmarks.row(z.id)(1) == 0.)
       {
         set_landmark(z.id, sensor_to_map(Eigen::Vector2d(z.x, z.y), get_pose()));
@@ -289,8 +289,19 @@ public:
       K_i_t.setZero();
       K_i_t = (S_bar * H_t.transpose()) * (H_t * S_bar * H_t.transpose() + Q_t).inverse();
 
-      // Update state and covariance estimates for this observation.
+      /////////////////////////////////////////////////////////////////////////
+      // Update mean state and covariance estimates for this observation.
+      /////////////////////////////////////////////////////////////////////////
 
+      // Mean.
+      Eigen::Vector2d z_hat = map_to_sensor(get_landmarks().row(z.id), get_pose());  // Expected measurement.
+      estimated_state_.mean += K_i_t * (Eigen::Vector2d(z.x, z.y) - z_hat);
+      double theta = estimated_state_.mean[2];
+      estimated_state_.mean[2] = atan2(sin(theta), cos(theta)); // Normalize theta.
+
+      // Covariance.
+      Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I = Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>::Identity();
+      estimated_state_.covariance = (I - K_i_t * H_t) * S_bar;
     }
 
     return estimated_state_;

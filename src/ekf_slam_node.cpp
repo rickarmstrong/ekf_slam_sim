@@ -2,14 +2,22 @@
 #include <mutex>
 #include <thread>
 #include "nav_msgs/msg/odometry.hpp"
-#include "tf2/LinearMath/Quaternion.h"
 #include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 
 # include "ekf_localizer.hpp"
 # include "utility.hpp"
 using Ekf = ekf_localizer::Ekf;
 
 constexpr size_t QOS_HISTORY_DEPTH = 10;
+constexpr double LM_MARKER_RADIUS = 0.25;  // RViz markers representing landmarks.
+const char* BASE_FRAME = "base_link";
+const char* SENSOR_FRAME = "oakd_rgb_camera_optical_frame";
 
 class EkfNode final : public rclcpp::Node
 {
@@ -26,7 +34,11 @@ public:
       "odom", QOS_HISTORY_DEPTH, [this](const nav_msgs::msg::Odometry::SharedPtr msg){ odom_cb(msg); });
 
     pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("ekf_pose", QOS_HISTORY_DEPTH);
+    lm_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("landmarks", 10);
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   }
 
 private:
@@ -44,7 +56,12 @@ private:
 
   // Publishers.
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr lm_pub_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
+  // tf listener.
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
 
   void broadcast_pose_as_tf(const ekf_localizer::Pose2D& pose) const
   {
@@ -85,6 +102,7 @@ private:
     if (0 == last_odom_time_.time_since_epoch().count())
     {
       last_odom_time_ = std::chrono::steady_clock::now();
+      RCLCPP_INFO(this->get_logger(), "EkfNode::odom_cb(): first odom message received.");
       return;
     }
 
@@ -96,38 +114,105 @@ private:
     auto next = filter_.predict(u, dt);
     last_odom_time_ = steady_clock::now();
 
-    // Check for a new landmark observation.
+    // Check for a new set of tag observations.
+    ekf_localizer::TagArray last_tag_detection;
     bool new_observation = false;
     {
       std::scoped_lock lock(tag_detection_msg_mutex_);
       if (to_std_time(last_tag_detection_.header.stamp) > last_tag_detection_time_)
       {
+        // Mark the arrival time of our latest.
         last_tag_detection_time_ = to_std_time(last_tag_detection_.header.stamp);
-        new_observation = true;
+
+        if (!last_tag_detection_.detections.empty())
+        {
+          // Make a copy of the latest, so we can let go of our mutex.
+          last_tag_detection = last_tag_detection_;
+          new_observation = true;
+        }
       }
     }
+
     if (new_observation)
     {
-      // Correct.
+      // Use tf to transform detections from the sensor frame into the base frame.
+      std::string target_frame = BASE_FRAME;
+      std::string source_frame = SENSOR_FRAME;
+      ekf_localizer::TagArray tag_array_base_frame;  // latest tag detection array, base frame.
+      for (const ekf_localizer::TagDetection& d: last_tag_detection.detections)
+      {
+        // Position of the detected tag, in the sensor frame.
+        geometry_msgs::msg::PointStamped p_sensor;
+        p_sensor.header.frame_id = source_frame;
+        p_sensor.header.stamp = this->get_clock()->now();
+        p_sensor.point = d.pose.pose.pose.position;
+
+        // Transform the position to base frame. We assume that the sensor->base
+        // transformation is a static transform and always available.
+        geometry_msgs::msg::PointStamped p_base_frame;
+        try
+        {
+          p_base_frame = tf_buffer_->transform(p_sensor, target_frame);
+        }
+        catch (tf2::TransformException& ex)
+        {
+          // Nothing we can do at this point.
+          RCLCPP_ERROR(this->get_logger(), "EkfNode::odom_cb(): transform failed: %s", ex.what());
+          return;
+        }
+
+        // Use the transformed position to create a new detection and save it.
+        ekf_localizer::TagDetection d_base_frame;
+        d_base_frame.id =  d.id;
+        d_base_frame.pose.pose.pose.position = p_base_frame.point;
+        tag_array_base_frame.detections.push_back(d_base_frame);
+      }
+
+      // Do a correction using the latest observation.
+      filter_.correct(to_measurements(tag_array_base_frame));
+
+      // Notify on stdout, for debugging purposes.
       std::stringstream ss;
       ss << "odom_cb(): observed tag ids:  ";
-      for (const ekf_localizer::TagDetection& d: last_tag_detection_.detections)
+      for (const ekf_localizer::TagDetection& d: tag_array_base_frame.detections)
       {
         ss << d.id[0] << ", ";
       }
       RCLCPP_INFO_STREAM_THROTTLE(this->get_logger(), *this->get_clock(), 1000, ss.str());
-
-      filter_.correct(to_measurements(last_tag_detection_));
     }
 
     publish_pose(next.mean(Eigen::seqN(0, 3)), next.covariance.block<3, 3>(0, 0));
+    publish_landmarks(filter_.get_landmarks());
     broadcast_pose_as_tf(next.mean(Eigen::seqN(0, 3)));
+  }
 
-    RCLCPP_INFO_STREAM_THROTTLE(
-      this->get_logger(), *this->get_clock(), 1000,  "EKF pose estimate:  ("
-        << next.mean(0) << ", "
-        << next.mean(1) << ", "
-        << next.mean(2) << ") ");
+  void publish_landmarks(const Eigen::Matrix<double, ekf_localizer::LANDMARKS_KNOWN, ekf_localizer::LM_DIMS>& landmarks)
+  {
+    visualization_msgs::msg::MarkerArray marker_array;
+    for (uint i = 0; i < ekf_localizer::LANDMARKS_KNOWN; ++i)
+    {
+      visualization_msgs::msg::Marker marker;
+      marker.header.frame_id = "map";
+      marker.header.stamp = this->now();
+      marker.ns = "landmarks";
+      marker.id = i;
+      marker.type = visualization_msgs::msg::Marker::SPHERE;
+      marker.action = visualization_msgs::msg::Marker::ADD;
+      marker.pose.position.x = landmarks.row(i)[0];
+      marker.pose.position.y = landmarks.row(i)[1];
+      marker.pose.position.z = LM_MARKER_RADIUS;
+      marker.scale.x = LM_MARKER_RADIUS;
+      marker.scale.y = LM_MARKER_RADIUS;
+      marker.scale.z = LM_MARKER_RADIUS;
+      marker.color.r = 0.0f;
+      marker.color.g = 1.0f;
+      marker.color.b = 0.0f;
+      marker.color.a = 1.0f;
+      marker.lifetime = rclcpp::Duration(0, 0);;
+      marker_array.markers.push_back(marker);
+    }
+    lm_pub_->publish(marker_array);
+
   }
 
   // Convert a ekf_localizer::Pose2D to a ROS message and publish it.
@@ -175,7 +260,7 @@ private:
       }
     }
 
-    RCLCPP_INFO_STREAM_THROTTLE(
+    RCLCPP_DEBUG_STREAM_THROTTLE(
       this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
   }
 };
@@ -184,7 +269,7 @@ int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
   const auto node = std::make_shared<EkfNode>();
-  RCLCPP_INFO(node->get_logger(), "EKF Localizer node starting.");
+  RCLCPP_INFO(node->get_logger(), "EKF Localizer node started.");
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
