@@ -257,6 +257,7 @@ public:
   void set_landmark(unsigned id, const Eigen::Vector2d& landmark)
   {
     get_landmarks_().row(id) = landmark;
+    landmarks_seen_.push_back(id);
   }
 
   // Mutates the global EKF state.
@@ -267,7 +268,7 @@ public:
       // If this is the first time we've seen this tag,
       // initialize our landmark estimate with this measurement.
       Eigen::MatrixXd landmarks = get_landmarks();
-      if (landmarks.row(z.id)(0) == 0. &&  landmarks.row(z.id)(1) == 0.)
+      if (std::find(landmarks_seen_.begin(), landmarks_seen_.end(), z.id) == landmarks_seen_.end())
       {
         set_landmark(z.id, sensor_to_map(Eigen::Vector2d(z.x, z.y), get_pose()));
       }
@@ -308,6 +309,7 @@ public:
 
 private:
   inline static EkfState estimated_state_ = EkfState();
+  inline static std::vector<unsigned> landmarks_seen_;
 
   /**
   * @brief Returns a writable view on the (flat) state vector, reshaped to look

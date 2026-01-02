@@ -1,6 +1,6 @@
 // Copyright (c) 2025 Richard Armstrong
+#include <format>
 #include <mutex>
-#include <thread>
 #include "nav_msgs/msg/odometry.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2_ros/buffer.h"
@@ -15,7 +15,7 @@
 using Ekf = ekf_localizer::Ekf;
 
 constexpr size_t QOS_HISTORY_DEPTH = 10;
-constexpr double LM_MARKER_RADIUS = 0.25;  // RViz markers representing landmarks.
+constexpr double LM_MARKER_SCALE = 0.25;  // RViz markers representing landmarks.
 const char* BASE_FRAME = "base_link";
 const char* SENSOR_FRAME = "oakd_rgb_camera_optical_frame";
 
@@ -196,14 +196,15 @@ private:
       marker.header.stamp = this->now();
       marker.ns = "landmarks";
       marker.id = i;
-      marker.type = visualization_msgs::msg::Marker::SPHERE;
+      marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
       marker.action = visualization_msgs::msg::Marker::ADD;
+      marker.text = std::format("{}", i);
       marker.pose.position.x = landmarks.row(i)[0];
       marker.pose.position.y = landmarks.row(i)[1];
-      marker.pose.position.z = LM_MARKER_RADIUS;
-      marker.scale.x = LM_MARKER_RADIUS;
-      marker.scale.y = LM_MARKER_RADIUS;
-      marker.scale.z = LM_MARKER_RADIUS;
+      marker.pose.position.z = LM_MARKER_SCALE;
+      marker.scale.x = LM_MARKER_SCALE;
+      marker.scale.y = LM_MARKER_SCALE;
+      marker.scale.z = LM_MARKER_SCALE;
       marker.color.r = 0.0f;
       marker.color.g = 1.0f;
       marker.color.b = 0.0f;
