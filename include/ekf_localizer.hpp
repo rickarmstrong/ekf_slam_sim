@@ -68,7 +68,6 @@ struct EkfState {
 
   Eigen::VectorXd mean;
   Eigen::MatrixXd covariance;
-  time_point timestamp;
 };
 
 struct TwistCmd
