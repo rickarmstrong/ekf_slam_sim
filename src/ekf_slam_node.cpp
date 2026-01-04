@@ -16,6 +16,8 @@ using Ekf = ekf_localizer::Ekf;
 
 constexpr size_t QOS_HISTORY_DEPTH = 10;
 constexpr double LM_MARKER_SCALE = 0.25;  // RViz markers representing landmarks.
+constexpr double COVARIANCE_VIZ_SCALE = 1000.0;  // Exaggerate covariance so it's visible in RViz.
+
 const char* BASE_FRAME = "base_link";
 const char* SENSOR_FRAME = "oakd_rgb_camera_optical_frame";
 
@@ -235,10 +237,10 @@ private:
     msg.pose.pose.orientation.w = q.w();
 
     // 2D position covariances, writing to 2x2 block from (0, 0).
-    msg.pose.covariance[0] = cov(0, 0);
-    msg.pose.covariance[1] = cov(0, 1);
-    msg.pose.covariance[6] = cov(1, 0);
-    msg.pose.covariance[7] = cov(1, 1);
+    msg.pose.covariance[0] = cov(0, 0) * COVARIANCE_VIZ_SCALE;
+    msg.pose.covariance[1] = cov(0, 1) * COVARIANCE_VIZ_SCALE;
+    msg.pose.covariance[6] = cov(1, 0) * COVARIANCE_VIZ_SCALE;
+    msg.pose.covariance[7] = cov(1, 1) * COVARIANCE_VIZ_SCALE;
 
     // Orientation (theta) covariance (rotation about z only).
     msg.pose.covariance[35] = cov(2, 2);
