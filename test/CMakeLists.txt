@@ -3,7 +3,7 @@ set(TEST_NAMES
 )
 
 foreach(name IN LISTS TEST_NAMES)
-  ament_add_gtest(${name} ${name}.cpp ../src/measurement.cpp)
+  ament_add_gtest(${name} ${name}.cpp ../src/ekf_localizer.cpp ../src/measurement.cpp)
   ament_target_dependencies(${name} rclcpp apriltag_ros_interfaces nav_msgs)
 
   if(${TEST_DEBUG_INFO})
