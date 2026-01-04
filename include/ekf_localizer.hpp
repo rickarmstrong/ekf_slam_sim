@@ -202,6 +202,25 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
 // We manage the global EKF state vector using the Borg (aka Monostate) pattern.
 class Ekf final
 {
+  // TODO: split this file into header/implementation to clean up this mess.
+  /**
+  * @brief Returns a writable view on the (flat) state vector, reshaped to look
+  * like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
+  */
+  auto get_landmarks_()
+  {
+    return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped<Eigen::RowMajor>(LANDMARKS_KNOWN, LM_DIMS);
+  }
+
+  /**
+  * @brief Returns a read-only view on the (flat) state vector, reshaped to look
+  * like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
+  */
+  auto get_landmarks_() const
+  {
+    return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped<Eigen::RowMajor>(LANDMARKS_KNOWN, LM_DIMS);
+  }
+
 public:
   //
   // Prediction calls mutate the global EKF state.
@@ -320,14 +339,15 @@ private:
     return estimated_state_.mean.head(POSE_DIMS);
   }
 
-  /**
-  * @brief Returns a writable view on the (flat) state vector, reshaped to look
-  * like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
-  */
-  static  Eigen::Reshaped<Eigen::Block<Eigen::Matrix<double, -1, 1>, -1, 1>> get_landmarks_()
-  {
-    return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
-  }
+
+  // static  Eigen::Reshaped<Eigen::Block<Eigen::Matrix<double, -1, 1>, -1, 1>> get_landmarks_()
+  // {
+  //   return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
+  // }
+  // auto get_landmarks_()
+  // {
+  //   return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped<Eigen::RowMajor>(LANDMARKS_KNOWN, LM_DIMS);
+  // }
 };
 }  // namespace ekf_localizer
 #endif //EKF_LOCALIZER_HPP
