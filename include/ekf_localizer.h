@@ -202,7 +202,17 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
 // We manage the global EKF state vector using the Borg (aka Monostate) pattern.
 class Ekf final
 {
-  // TODO: split this file into header/implementation to clean up this mess.
+public:
+  EkfState predict(const TwistCmd& u, double dt);
+  EkfState predict(const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t);
+  EkfState correct(MeasurementList z_k);
+
+  [[nodiscard]] Eigen::Vector<double, POSE_DIMS> get_pose() const;
+  [[nodiscard]] Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks() const;
+
+  void set_landmark(unsigned id, const Eigen::Vector2d& landmark);
+
+private:
   /**
   * @brief Returns a writable view on the (flat) state vector, reshaped to look
   * like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
@@ -221,133 +231,15 @@ class Ekf final
     return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped<Eigen::RowMajor>(LANDMARKS_KNOWN, LM_DIMS);
   }
 
-public:
-  //
-  // Prediction calls mutate the global EKF state.
-  //
-  EkfState predict(const TwistCmd& u, double dt)
-  {
-    // Use the global noise config matrix M_t.
-    return predict(u, dt, M_t);
-  }
-
-  EkfState predict(const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t)
-  {
-    // Current pose estimate.
-    Eigen::Vector3d x0 = estimated_state_.mean(Eigen::seqN(0, 3));
-
-    // Noise-free motion estimate.
-    Pose2D predicted_pose = g(u, x0, dt);
-
-    // Update pose.
-    estimated_state_.mean.head(POSE_DIMS) = predicted_pose;
-
-    // Update pose covariance.
-    Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> G_t;
-    G_t.setIdentity();
-    G_t.block<3, 3>(0, 0) = G_t_x(u, x0, dt);
-    Eigen::Matrix<double, 3, 2> V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
-    Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();
-    Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> cov_next = G_t * estimated_state_.covariance * G_t.transpose();
-    cov_next.block<3, 3>(0, 0) += R_t * (u.linear / MAX_VEL_X) * dt; // Only update pose covariance.
-    estimated_state_.covariance = cov_next;
-
-    return estimated_state_;
-  }
-
-  /**
-  * @brief Returns a copy of just the pose part of the state vector.
-  */
-  [[nodiscard]] Eigen::Vector<double, POSE_DIMS> get_pose() const
-  {
-    return get_pose_();
-  }
-
- /**
- * @brief Returns a copy of just the landmarks part of the (flat) state
- * vector, reshaped to look like a matrix of shape LANDMARKS_KNOWN x LM_DIMS.
- */
-  [[nodiscard]] Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks() const
-  {
-    return get_landmarks_().eval();
-  }
-
-  // Mutates the global EKF state.
-  void set_landmark(unsigned id, const Eigen::Vector2d& landmark)
-  {
-    get_landmarks_().row(id) = landmark;
-    landmarks_seen_.push_back(id);
-  }
-
-  // Mutates the global EKF state.
-  EkfState correct(MeasurementList z_k)
-  {
-    for (Measurement z: z_k)
-    {
-      // If this is the first time we've seen this tag,
-      // initialize our landmark estimate with this measurement.
-      Eigen::MatrixXd landmarks = get_landmarks();
-      if (std::find(landmarks_seen_.begin(), landmarks_seen_.end(), z.id) == landmarks_seen_.end())
-      {
-        set_landmark(z.id, sensor_to_map(Eigen::Vector2d(z.x, z.y), get_pose()));
-      }
-
-      // Get the low-dimensional Jacobian of the measurement.
-      SensorJacobian h = H_i_t(get_pose(), Eigen::Vector2d(z.x, z.y));
-
-      // "Promote" h to the full-size Jacobian, H_t.
-      Eigen::Matrix<double, LM_DIMS, STATE_DIMS> H_t;
-      H_t.setZero();
-      H_t.block<LM_DIMS, POSE_DIMS>(0, 0) = h.block<LM_DIMS, POSE_DIMS>(0, 0);
-      H_t.block<LM_DIMS, LM_DIMS>(0, POSE_DIMS + z.id * LM_DIMS) = h.block<LM_DIMS, LM_DIMS>(0, POSE_DIMS);
-
-      // Kalman gain, dimensions (2N+3, 2), where N is the number of landmarks.
-      // (2N+3, 2) = (2N+3,2N+3) @ (2N+3, 2) @ ((2, 2N+3) @ (2N+3, 2N+3) @ (2N+3, 2) + (2, 2))^-1
-      const Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>& S_bar = estimated_state_.covariance;  // Reduce clutter a little.
-      Eigen::Matrix<double, 2 * LANDMARKS_KNOWN + POSE_DIMS, LM_DIMS> K_i_t;
-      K_i_t.setZero();
-      K_i_t = (S_bar * H_t.transpose()) * (H_t * S_bar * H_t.transpose() + Q_t).inverse();
-
-      /////////////////////////////////////////////////////////////////////////
-      // Update mean state and covariance estimates for this observation.
-      /////////////////////////////////////////////////////////////////////////
-
-      // Mean.
-      Eigen::Vector2d z_hat = map_to_sensor(get_landmarks().row(z.id), get_pose());  // Expected measurement.
-      estimated_state_.mean += K_i_t * (Eigen::Vector2d(z.x, z.y) - z_hat);
-      double theta = estimated_state_.mean[2];
-      estimated_state_.mean[2] = atan2(sin(theta), cos(theta)); // Normalize theta.
-
-      // Covariance.
-      Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I = Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>::Identity();
-      estimated_state_.covariance = (I - K_i_t * H_t) * S_bar;
-    }
-
-    return estimated_state_;
-  }
-
-private:
-  inline static EkfState estimated_state_ = EkfState();
-  inline static std::vector<unsigned> landmarks_seen_;
-
   /**
   * @brief Returns a writable view on the (flat) state vector, reshaped to look
   * like a vector of length POSE_DIMS.
   */
-  static Eigen::VectorBlock<Eigen::Matrix<double, -1, 1>> get_pose_()
-  {
-    return estimated_state_.mean.head(POSE_DIMS);
-  }
+  static Eigen::VectorBlock<Eigen::Matrix<double, -1, 1>> get_pose_();
 
-
-  // static  Eigen::Reshaped<Eigen::Block<Eigen::Matrix<double, -1, 1>, -1, 1>> get_landmarks_()
-  // {
-  //   return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped(LANDMARKS_KNOWN, LM_DIMS);
-  // }
-  // auto get_landmarks_()
-  // {
-  //   return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped<Eigen::RowMajor>(LANDMARKS_KNOWN, LM_DIMS);
-  // }
+  inline static EkfState estimated_state_ = EkfState();
+  inline static std::vector<unsigned> landmarks_seen_;
 };
+
 }  // namespace ekf_localizer
 #endif //EKF_LOCALIZER_HPP

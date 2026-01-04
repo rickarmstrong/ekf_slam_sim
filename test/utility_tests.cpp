@@ -2,7 +2,7 @@
 #include <limits>
 #include "gtest/gtest.h"
 #include <Eigen/Dense>
-#include "ekf_localizer.hpp"
+#include "ekf_localizer.h"
 #include "utility.hpp"
 
 
