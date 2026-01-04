@@ -1,6 +1,6 @@
 // Copyright (c) 2025 Richard Armstrong
 #include <cmath>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "ekf_localizer.h"
 
 namespace ekf_localizer {

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 Richard Armstrong
 #include <limits>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include <Eigen/Dense>
 #include "ekf_localizer.h"
 #include "utility.hpp"
