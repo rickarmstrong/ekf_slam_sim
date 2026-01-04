@@ -42,7 +42,7 @@ const Eigen::Matrix2d Q_t{
 // we frequently find ourselves moving in a straight line, i.e.
 // with an angular velocity of zero. We mitigate this problem by
 // setting a small minimum angular velocity.
-constexpr double MIN_ANG_VEL = 1e-3;  // ~104 minutes to do a 360.
+constexpr double MIN_ANG_VEL = 1e-4;
 
 // Need to know this for scaling covariance with velocity.
 constexpr double MAX_VEL_X = 0.25;  // m/s.
