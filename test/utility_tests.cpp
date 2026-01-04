@@ -27,12 +27,23 @@ TEST(UtilityTest, ToMeasurementSmokeTest)
 
 TEST(UtilityTest, EigenSandbox)
 {
-  Eigen::VectorXd flat = Eigen::VectorXd::Random(6);
-  Eigen::MatrixXd landmarks = flat.tail(4).reshaped(2, 2);
-  Eigen::Vector2d lm(0., 1.);
-  landmarks.row(0) = lm;
+  Eigen::VectorXd mu(9);
+  mu << 0, 1, 2, 3, 4, 5, 6, 7, 8;
 
-  ASSERT_EQ(1, 1);
+  // Pretend that mu is an EKF state vector where the first three elements are
+  // the 2D pose, and the remaining elements represent three landmarks i.e.
+  //    x, y, theta, x0, y0, x1, y1, x2, y2.
+  // Create a writable "view" on mu that references just the landmarks as
+  // a MatrixXd with dimensions 3x2.
+  auto mu_view = mu.tail(6).reshaped<Eigen::RowMajor>(3, 2);
+
+  // Overwrite a single landmark.
+  mu_view.row(1) = Eigen::Vector2d(0., 0.);
+
+  Eigen::VectorXd mu_expected(9);
+  mu_expected << 0, 1, 2, 3, 4, 0, 0, 7, 8;
+
+  ASSERT_EQ(mu, mu_expected);
 }
 
 TEST(UtilityTest, MapToSensorTest)
