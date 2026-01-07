@@ -145,7 +145,7 @@ SensorJacobian H_i_t(Pose2D x_t, Eigen::Vector2d lm)
   double theta = x_t(2);
   double H_0_0 = -cos(theta);
   double H_0_1 = -sin(theta);
-  double H_0_2 = -lm[0] * sin(theta) + lm[1] * cos(theta) + x_t[0] * sin(theta) + x_t[1] * cos(theta);
+  double H_0_2 = -lm[0] * sin(theta) + lm[1] * cos(theta) + x_t[0] * sin(theta) - x_t[1] * cos(theta);
   double H_0_3 =  cos(theta);
   double H_0_4 =  sin(theta);
   double H_1_0 = sin(theta);

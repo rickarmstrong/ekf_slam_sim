@@ -61,8 +61,8 @@ EkfState Ekf::correct(MeasurementList z_k)
       set_landmark(z.id, sensor_to_map(Eigen::Vector2d(z.x, z.y), get_pose()));
     }
 
-    // Get the low-dimensional Jacobian of the measurement.
-    SensorJacobian h = H_i_t(get_pose(), Eigen::Vector2d(z.x, z.y));
+    // Get the low-dimensional Jacobian of the sensor model.
+    SensorJacobian h = H_i_t(get_pose(), get_landmarks().row(z.id));
 
     // "Promote" h to the full-size Jacobian, H_t.
     Eigen::Matrix<double, LM_DIMS, STATE_DIMS> H_t;
