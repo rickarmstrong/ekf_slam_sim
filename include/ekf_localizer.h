@@ -23,8 +23,8 @@ constexpr size_t LANDMARKS_KNOWN = 16;  // The number of tags defined in config/
 constexpr size_t STATE_DIMS = POSE_DIMS + LM_DIMS * LANDMARKS_KNOWN;
 
 // Process noise params, expressed as control noise. Will be mapped to state space at runtime.
-constexpr double CMD_VEL_LIN_STDEV_MS = 0.001;  // One-sigma Linear velocity error, meters/s.
-constexpr double CMD_VEL_ANG_STDEV_RADS = 0.001; // One-sigma angular velocity error, radians/s.
+constexpr double CMD_VEL_LIN_STDEV_MS = 0.01;  // One-sigma Linear velocity error, meters/s.
+constexpr double CMD_VEL_ANG_STDEV_RADS = 0.01; // One-sigma angular velocity error, radians/s.
 const Eigen::Matrix2d M_t{
   {pow(CMD_VEL_LIN_STDEV_MS, 2.), 0.0},
   {0.0, pow(CMD_VEL_ANG_STDEV_RADS, 2.)},
@@ -205,7 +205,7 @@ class Ekf final
 public:
   EkfState predict(const TwistCmd& u, double dt);
   EkfState predict(const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t);
-  EkfState correct(MeasurementList z_k);
+  EkfState correct(const MeasurementList& z_k);
 
   [[nodiscard]] Eigen::Vector<double, POSE_DIMS> get_pose() const;
   [[nodiscard]] Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks() const;

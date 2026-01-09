@@ -49,7 +49,7 @@ void Ekf::set_landmark(unsigned id, const Eigen::Vector2d& landmark)
   landmarks_seen_.push_back(id);
 }
 
-EkfState Ekf::correct(MeasurementList z_k)
+EkfState Ekf::correct(const MeasurementList& z_k)
 {
   for (Measurement z: z_k)
   {
@@ -75,7 +75,7 @@ EkfState Ekf::correct(MeasurementList z_k)
     const Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>& S_bar = estimated_state_.covariance;  // Reduce clutter a little.
     Eigen::Matrix<double, 2 * LANDMARKS_KNOWN + POSE_DIMS, LM_DIMS> K_i_t;
     K_i_t.setZero();
-    K_i_t = (S_bar * H_t.transpose()) * (H_t * S_bar * H_t.transpose() + Q_t).inverse();
+    K_i_t = (estimated_state_.covariance * H_t.transpose()) * (H_t * estimated_state_.covariance * H_t.transpose() + Q_t).inverse();
 
     /////////////////////////////////////////////////////////////////////////
     // Update mean state and covariance estimates for this observation.
@@ -87,9 +87,10 @@ EkfState Ekf::correct(MeasurementList z_k)
     double theta = estimated_state_.mean[2];
     estimated_state_.mean[2] = atan2(sin(theta), cos(theta)); // Normalize theta.
 
-    // Covariance.
+    // Covariance (Joseph form).
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I = Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>::Identity();
-    estimated_state_.covariance = (I - K_i_t * H_t) * S_bar;
+    Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I_KH = I - K_i_t * H_t;
+    estimated_state_.covariance = I_KH * estimated_state_.covariance * I_KH.transpose() + K_i_t * Q_t * K_i_t.transpose();
   }
 
   return estimated_state_;
