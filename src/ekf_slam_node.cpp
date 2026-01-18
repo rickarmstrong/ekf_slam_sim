@@ -11,6 +11,7 @@
 #include<visualization_msgs/msg/marker_array.hpp>
 
 #include "ekf_localizer.h"
+#include "measurement.h"
 #include "utility.hpp"
 using Ekf = ekf_localizer::Ekf;
 
@@ -113,9 +114,10 @@ private:
 
     // Calculate the time delta and predict our next state based solely on our motion model.
     const double dt = double_seconds(steady_clock::now() - last_odom_time_).count();
-    auto next = filter_.predict(u, dt);
+    auto predicted_state = filter_.predict(filter_.get_state(), u, dt);
     last_odom_time_ = steady_clock::now();
 
+    // TODO: collapse this to a function.
     // Check for a new set of tag observations.
     ekf_localizer::TagArray last_tag_detection;
     bool new_observation = false;
@@ -135,6 +137,7 @@ private:
       }
     }
 
+    // TODO: collapse this to a function.
     if (new_observation)
     {
       // Use tf to transform detections from the sensor frame into the base frame.
@@ -171,7 +174,9 @@ private:
       }
 
       // Do a correction using the latest observation.
-      filter_.correct(to_measurements(tag_array_base_frame));
+      std::list<ekf_localizer::Measurement> z_k = to_measurements(tag_array_base_frame);
+      predicted_state.init_new_landmarks(z_k);
+      filter_.correct(predicted_state, z_k);
 
       // Notify on stdout, for debugging purposes.
       std::stringstream ss;
@@ -182,10 +187,14 @@ private:
       }
       RCLCPP_INFO_STREAM_THROTTLE(this->get_logger(), *this->get_clock(), 1000, ss.str());
     }
+    else
+    {
+      filter_.correct(predicted_state, std::list<ekf_localizer::Measurement>());
+    }
 
-    publish_pose(next.mean(Eigen::seqN(0, 3)), next.covariance.block<3, 3>(0, 0));
+    publish_pose(filter_.get_state().mean.head(ekf_localizer::POSE_DIMS), filter_.get_state().covariance.block<3, 3>(0, 0));
     publish_landmarks(filter_.get_landmarks());
-    broadcast_pose_as_tf(next.mean(Eigen::seqN(0, 3)));
+    broadcast_pose_as_tf(filter_.get_state().mean.head(ekf_localizer::POSE_DIMS));
   }
 
   void publish_landmarks(const Eigen::Matrix<double, ekf_localizer::LANDMARKS_KNOWN, ekf_localizer::LM_DIMS>& landmarks)

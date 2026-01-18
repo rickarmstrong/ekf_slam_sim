@@ -29,6 +29,7 @@ add_executable(ekf_slam
         src/ekf_slam_node.cpp
         src/measurement.cpp
         src/ekf_localizer.cpp
+        src/ekf_state.cpp
 )
 ament_target_dependencies(ekf_slam PUBLIC
         rclcpp

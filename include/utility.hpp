@@ -3,7 +3,7 @@
 #define UTILITY_HPP
 #include <chrono>
 #include <list>
-#include "measurement.hpp"
+#include "measurement.h"
 
 using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;

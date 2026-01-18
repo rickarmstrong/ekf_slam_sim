@@ -3,11 +3,13 @@
 #define EKF_LOCALIZER_HPP
 #include <cmath>
 #include <chrono>
+#include <list>
 
 #include <Eigen/Dense>
-#include "rclcpp/rclcpp.hpp"
+#include <rclcpp/rclcpp.hpp>
 
-#include "measurement.hpp"
+#include "ekf_state.h"
+#include "measurement.h"
 #include "utility.hpp"
 
 // Aliases to reduce the name noise.
@@ -16,11 +18,6 @@ using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
 
 namespace ekf_localizer {
-
-constexpr size_t POSE_DIMS = 3;     // x, y, theta.
-constexpr size_t LM_DIMS = 2;       // x, y.
-constexpr size_t LANDMARKS_KNOWN = 16;  // The number of tags defined in config/tags.yaml.
-constexpr size_t STATE_DIMS = POSE_DIMS + LM_DIMS * LANDMARKS_KNOWN;
 
 // Process noise params, expressed as control noise. Will be mapped to state space at runtime.
 constexpr double CMD_VEL_LIN_STDEV_MS = 0.01;  // One-sigma Linear velocity error, meters/s.
@@ -47,28 +44,7 @@ constexpr double MIN_ANG_VEL = 1e-4;
 // Need to know this for scaling covariance with velocity.
 constexpr double MAX_VEL_X = 0.25;  // m/s.
 
-using MeasurementList = std::list<Measurement>;
 using SensorJacobian = Eigen::Matrix<double, LM_DIMS, POSE_DIMS + LM_DIMS>;
-
-struct EkfState {
-  EkfState()
-    :mean(STATE_DIMS), covariance(STATE_DIMS, STATE_DIMS)
-  {
-    // We assume we start at (0, 0), so this makes sense for our pose.
-    // We set landmarks to (0, 0) to mark them as uninitialized.
-    mean.setZero();
-
-    // Pose covariance starts at zero, because we know our initial location.
-    // Landmark variances start at "infinity", which we fake by initializing
-    // them to arbitrary "big number".
-    covariance.setZero();
-    covariance.block<LANDMARKS_KNOWN * LM_DIMS, LANDMARKS_KNOWN * LM_DIMS>(3, 3) =
-      Eigen::MatrixXd::Identity(LANDMARKS_KNOWN * LM_DIMS, LANDMARKS_KNOWN * LM_DIMS) * 1e6;
-  }
-
-  Eigen::VectorXd mean;
-  Eigen::MatrixXd covariance;
-};
 
 struct TwistCmd
 {
@@ -199,18 +175,18 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
 }
 
 // EKF Landmark SLAM with a fixed number of easily-identifiable landmarks.
-// We manage the global EKF state vector using the Borg (aka Monostate) pattern.
 class Ekf final
 {
 public:
-  EkfState predict(const TwistCmd& u, double dt);
-  EkfState predict(const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t);
-  EkfState correct(const MeasurementList& z_k);
+  EkfState predict(const EkfState& prev_state, const TwistCmd& u, double dt);
+  EkfState predict(const EkfState& prev_state, const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t);
+  EkfState correct(const EkfState& predicted_state, const std::list<Measurement>& z_k);
 
   [[nodiscard]] Eigen::Vector<double, POSE_DIMS> get_pose() const;
   [[nodiscard]] Eigen::Matrix<double, LANDMARKS_KNOWN, LM_DIMS> get_landmarks() const;
+  [[nodiscard]] EkfState get_state() const;
 
-  void set_landmark(unsigned id, const Eigen::Vector2d& landmark);
+  void init_new_landmarks(const std::list<Measurement>& z_k);
 
 private:
   /**
@@ -231,14 +207,7 @@ private:
     return estimated_state_.mean.tail(STATE_DIMS - POSE_DIMS).reshaped<Eigen::RowMajor>(LANDMARKS_KNOWN, LM_DIMS);
   }
 
-  /**
-  * @brief Returns a writable view on the (flat) state vector, reshaped to look
-  * like a vector of length POSE_DIMS.
-  */
-  static Eigen::VectorBlock<Eigen::Matrix<double, -1, 1>> get_pose_();
-
-  inline static EkfState estimated_state_ = EkfState();
-  inline static std::vector<unsigned> landmarks_seen_;
+  EkfState estimated_state_;
 };
 
 }  // namespace ekf_localizer

@@ -21,7 +21,7 @@ TEST(UtilityTest, ToMeasurementSmokeTest)
     ta.detections.push_back(d);
   }
 
-  ekf_localizer::MeasurementList measurements = to_measurements(ta);
+  std::list<ekf_localizer::Measurement> measurements = to_measurements(ta);
   ASSERT_EQ(measurements.size(), TAG_ARRAY_SIZE);
 }
 
