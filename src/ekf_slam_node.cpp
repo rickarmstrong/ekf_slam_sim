@@ -17,7 +17,6 @@ using Ekf = ekf_localizer::Ekf;
 
 constexpr size_t QOS_HISTORY_DEPTH = 10;
 constexpr double LM_MARKER_SCALE = 0.25;  // RViz markers representing landmarks.
-constexpr double COVARIANCE_VIZ_SCALE = 1000.0;  // Exaggerate covariance so it's visible in RViz.
 
 const char* BASE_FRAME = "base_link";
 const char* SENSOR_FRAME = "oakd_rgb_camera_optical_frame";
@@ -98,6 +97,7 @@ private:
    * @param[in] msg  nav_msgs::msg::Odometry::SharedPtr&, a velocity command with
    * linear and angular components.
    */
+  // TODO: we do too much work in this callback; it should just push the message into a queue and return.
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
   {
     // If this is our first odom message, we can't calculate dt, so
@@ -246,10 +246,10 @@ private:
     msg.pose.pose.orientation.w = q.w();
 
     // 2D position covariances, writing to 2x2 block from (0, 0).
-    msg.pose.covariance[0] = cov(0, 0) * COVARIANCE_VIZ_SCALE;
-    msg.pose.covariance[1] = cov(0, 1) * COVARIANCE_VIZ_SCALE;
-    msg.pose.covariance[6] = cov(1, 0) * COVARIANCE_VIZ_SCALE;
-    msg.pose.covariance[7] = cov(1, 1) * COVARIANCE_VIZ_SCALE;
+    msg.pose.covariance[0] = cov(0, 0);
+    msg.pose.covariance[1] = cov(0, 1);
+    msg.pose.covariance[6] = cov(1, 0);
+    msg.pose.covariance[7] = cov(1, 1);
 
     // Orientation (theta) covariance (rotation about z only).
     msg.pose.covariance[35] = cov(2, 2);
@@ -275,6 +275,32 @@ private:
     RCLCPP_DEBUG_STREAM_THROTTLE(
       this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
   }
+};
+
+class DeadReckoner final : public rclcpp::Node
+{
+public:
+  DeadReckoner()
+    : Node("dead_reckoner")
+  {
+    // Odometry messages, from which we will use velocities and treat them as control.
+    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+      "odom", QOS_HISTORY_DEPTH, [this](const nav_msgs::msg::Odometry::SharedPtr msg){ odom_cb(msg); });
+
+    pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("ekf_pose", QOS_HISTORY_DEPTH);
+  }
+
+  void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
+  {
+    ekf_localizer::TwistCmd u(0., 0.);
+    double dt;
+    ekf_localizer::Pose2D x0;
+    ekf_localizer::Pose2D x1 = ekf_localizer::g(u, x0, dt);
+  }
+
+private:
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
 };
 
 int main(int argc, char * argv[])
