@@ -27,7 +27,7 @@ EkfState Ekf::predict(const EkfState& prev_state, const TwistCmd& u, double dt, 
   G_t.setIdentity();
   G_t.block<3, 3>(0, 0) = G_t_x(u, x0, dt);
   Eigen::Matrix<double, 3, 2> V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
-  Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();  // TODO: review this. Maybe scale M_t here.
+  Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();
   Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> P0 = prev_state.covariance;
   Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> P1 = G_t * P0 * G_t.transpose();
   P1.block<3, 3>(0, 0) += R_t * (u.linear / MAX_VEL_X) * dt; // Only update pose covariance.

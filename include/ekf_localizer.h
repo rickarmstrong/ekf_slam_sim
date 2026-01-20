@@ -20,7 +20,7 @@ using time_point = steady_clock::time_point;
 namespace ekf_localizer {
 
 // Process noise params, expressed as control noise. Will be mapped to state space at runtime.
-constexpr double CMD_VEL_LIN_STDEV_MS = 0.01;  // One-sigma Linear velocity error, meters/s.
+constexpr double CMD_VEL_LIN_STDEV_MS = 0.001;  // One-sigma Linear velocity error, meters/s.
 constexpr double CMD_VEL_ANG_STDEV_RADS = 0.01; // One-sigma angular velocity error, radians/s.
 const Eigen::Matrix2d M_t{
   {pow(CMD_VEL_LIN_STDEV_MS, 2.), 0.0},
@@ -28,8 +28,8 @@ const Eigen::Matrix2d M_t{
 };
 
 // Measurement noise, stdev of cartesian (x, y) measurement noise.
-constexpr double MEASUREMENT_STDEVX_M = 0.01;
-constexpr double MEASUREMENT_STDEVY_M = 0.01;
+constexpr double MEASUREMENT_STDEVX_M = 0.001;
+constexpr double MEASUREMENT_STDEVY_M = 0.001;
 const Eigen::Matrix2d Q_t{
   {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
   {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
@@ -54,29 +54,35 @@ struct TwistCmd
   double angular;
 };
 
+// TODO: need a docstring here.
+// TODO: have a look at Gazebo's implementation here: https://github.com/gazebosim/gz-math/blob/gz-math9/src/DiffDriveOdometry.cc#L226.
+// Might handle low angular velocity better.
 inline
 Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
 {
   double v_t = u.linear;
-  double omega_t = u.angular;
+  double w_t = u.angular;
   double theta = x0(2);
 
-  // Avoid div/zero for straight-line trajectories or no motion.
-  if (fabs(omega_t) < MIN_ANG_VEL)
-  {
-    omega_t = MIN_ANG_VEL;
+  Pose2D delta_x;
+
+  // Straight-line motion (limiting case as w_t -> 0).
+  if (fabs(w_t) < MIN_ANG_VEL) {
+    delta_x = {
+      v_t * cos(theta) * delta_t,
+      v_t * sin(theta) * delta_t,
+      0.0  // No rotation
+    };
   }
-
-  // The control command u represents a circular trajectory, whose radius is abs(v_t / omega_t).
-  // Here we're calling the signed ratio v/omega "r" for de-cluttering convenience, even though it's not exactly /that/.
-  double r = v_t / omega_t;
-
-  // Pose delta.
-  Pose2D delta_x = {
-    -r * sin(theta) + r * sin(theta + (omega_t * delta_t)),
-    r * cos(theta) - r * cos(theta + (omega_t * delta_t)),
-    omega_t * delta_t
-  };
+  // Curved motion.
+  else {
+    double r = v_t / w_t;
+    delta_x = {
+      -r * sin(theta) + r * sin(theta + w_t * delta_t),
+       r * cos(theta) - r * cos(theta + w_t * delta_t),
+       w_t * delta_t
+    };
+  }
 
   // Normalize theta to [-pi, pi].
   Pose2D x_next = x0 + delta_x;
@@ -152,25 +158,33 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
   double w_t = u.angular;
   double theta = x0(2);
 
+  Eigen::MatrixXd V_t(3, 2);
+
   // Avoid div/zero for straight-line trajectories or no motion.
   if (fabs(w_t) < MIN_ANG_VEL)
   {
-    w_t = MIN_ANG_VEL;
+    double c_t = cos(theta);
+    double s_t = sin(theta);
+
+    V_t << c_t * delta_t,  0,
+           s_t * delta_t,  0,
+           0,              delta_t;
   }
+  else
+  {
+    double s_t = sin(theta);
+    double c_t = cos(theta);
+    double s_w_t = sin(theta + (w_t * delta_t));
+    double c_w_t = cos(theta + (w_t * delta_t));
 
-  double s_t = sin(theta);
-  double c_t = cos(theta);
-  double s_w_t = sin(theta + (w_t * delta_t));
-  double c_w_t = cos(theta + (w_t * delta_t));
-
-  double V_0_0 = (1. / w_t) * (-s_t + s_w_t);
-  double V_0_1 = (v_t / w_t * w_t) * (s_t  - s_w_t) + (v_t / w_t) * c_w_t * delta_t;
-  double V_1_0 = (1. / w_t) * (c_t - c_w_t);
-  double V_1_1 = -(v_t / w_t * w_t) * (c_t - c_w_t) + (v_t / w_t) * s_w_t * delta_t;
-  Eigen::MatrixXd V_t(3, 2);
-  V_t <<  V_0_0, V_0_1,
-          V_1_0, V_1_1,
-          0.0, delta_t;
+    double V_0_0 = (1. / w_t) * (-s_t + s_w_t);
+    double V_0_1 = (v_t / w_t * w_t) * (s_t  - s_w_t) + (v_t / w_t) * c_w_t * delta_t;
+    double V_1_0 = (1. / w_t) * (c_t - c_w_t);
+    double V_1_1 = -(v_t / w_t * w_t) * (c_t - c_w_t) + (v_t / w_t) * s_w_t * delta_t;
+    V_t <<  V_0_0, V_0_1,
+            V_1_0, V_1_1,
+            0.0, delta_t;
+  }
   return V_t;
 }
 
