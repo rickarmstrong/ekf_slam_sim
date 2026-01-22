@@ -1,12 +1,9 @@
 // Copyright (c) 2025 Richard Armstrong
 #ifndef UTILITY_HPP
 #define UTILITY_HPP
-#include <chrono>
 #include <list>
 #include "measurement.h"
 
-using steady_clock = std::chrono::steady_clock;
-using time_point = steady_clock::time_point;
 
 /**
  * @brief Transform a point p, expressed in the map frame, to the sensor frame at pose x_t.
@@ -71,18 +68,6 @@ sensor_to_map(Eigen::Vector2d p, ekf_localizer::Pose2D x_t)
   p_homo << p, 1.;
 
   return (m_T_b * p_homo).head(2).eval();
-}
-
-/**
- * @brief Convenience function to turn a message header timestamp to a std::chrono::time_point.
- * @param ros_time timestamp from a ROS2 message header.
- * @return std::chrono::time_point<std::chrono::system_clock>
- */
-inline time_point
-to_std_time(const builtin_interfaces::msg::Time& ros_time)
-{
-  const auto duration = std::chrono::seconds(ros_time.sec) + std::chrono::nanoseconds(ros_time.nanosec);
-  return time_point(duration);
 }
 
 /**

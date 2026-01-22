@@ -10,12 +10,6 @@
 
 #include "ekf_state.h"
 #include "measurement.h"
-#include "utility.hpp"
-
-// Aliases to reduce the name noise.
-using double_seconds = std::chrono::duration<double>;
-using steady_clock = std::chrono::steady_clock;
-using time_point = steady_clock::time_point;
 
 namespace ekf_localizer {
 

@@ -47,12 +47,13 @@ private:
   Ekf filter_;
 
   // Odom messages.
-  time_point last_odom_time_;
+  bool first_odom_msg_ = true;
+  rclcpp::Time last_odom_time_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
   // Tag detection messages.
   ekf_localizer::TagArray last_tag_detection_;
-  time_point last_tag_detection_time_;
+  rclcpp::Time last_tag_detection_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Subscription<ekf_localizer::TagArray>::SharedPtr tag_detections_sub_;
   std::mutex tag_detection_msg_mutex_;
 
@@ -100,11 +101,14 @@ private:
   // TODO: we do too much work in this callback; it should just push the message into a queue and return.
   void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
   {
+    rclcpp::Time msg_timestamp = msg->header.stamp;
+
     // If this is our first odom message, we can't calculate dt, so
     // save the current time and return.
-    if (0 == last_odom_time_.time_since_epoch().count())
+    if (first_odom_msg_)
     {
-      last_odom_time_ = std::chrono::steady_clock::now();
+      last_odom_time_ = msg_timestamp;
+      first_odom_msg_ = false;
       RCLCPP_INFO(this->get_logger(), "EkfNode::odom_cb(): first odom message received.");
       return;
     }
@@ -113,9 +117,9 @@ private:
     const ekf_localizer::TwistCmd u{msg->twist.twist.linear.x, msg->twist.twist.angular.z};
 
     // Calculate the time delta and predict our next state based solely on our motion model.
-    const double dt = double_seconds(steady_clock::now() - last_odom_time_).count();
+    double dt = (msg_timestamp - last_odom_time_).seconds();
     auto predicted_state = filter_.predict(filter_.get_state(), u, dt);
-    last_odom_time_ = steady_clock::now();
+    last_odom_time_ = msg_timestamp;
 
     // TODO: collapse this to a function.
     // Check for a new set of tag observations.
@@ -123,10 +127,10 @@ private:
     bool new_observation = false;
     {
       std::scoped_lock lock(tag_detection_msg_mutex_);
-      if (to_std_time(last_tag_detection_.header.stamp) > last_tag_detection_time_)
+      if (rclcpp::Time(last_tag_detection_.header.stamp) > last_tag_detection_time_)
       {
         // Mark the arrival time of our latest.
-        last_tag_detection_time_ = to_std_time(last_tag_detection_.header.stamp);
+        last_tag_detection_time_ = last_tag_detection_.header.stamp;
 
         if (!last_tag_detection_.detections.empty())
         {
@@ -262,7 +266,7 @@ private:
       std::scoped_lock lock(tag_detection_msg_mutex_);
       last_tag_detection_ = *msg;
     }
-    for (ekf_localizer::TagDetection d: last_tag_detection_.detections)
+    for (const ekf_localizer::TagDetection& d: last_tag_detection_.detections)
     {
       if (d.id.size() > 1)
       {

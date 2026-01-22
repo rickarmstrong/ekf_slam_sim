@@ -1,6 +1,7 @@
 // Copyright (c) 2025 Richard Armstrong
 #include "ekf_localizer.h"
 #include "ekf_state.h"
+#include "utility.hpp"
 
 // TODO: reorder definitions by name (i.e. alphabetize).
 namespace ekf_localizer {
