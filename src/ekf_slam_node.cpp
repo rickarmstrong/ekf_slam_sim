@@ -52,10 +52,9 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
   // Tag detection messages.
-  ekf_localizer::TagArray last_tag_detection_;
-  rclcpp::Time last_tag_detection_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   rclcpp::Subscription<ekf_localizer::TagArray>::SharedPtr tag_detections_sub_;
-  std::mutex tag_detection_msg_mutex_;
+  std::queue<ekf_localizer::TagArray> tag_msg_queue_;
+  std::mutex tag_msg_queue_mutex_;
 
   // Publishers.
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
@@ -123,21 +122,19 @@ private:
 
     // TODO: collapse this to a function.
     // Check for a new set of tag observations.
-    ekf_localizer::TagArray last_tag_detection;
+    ekf_localizer::TagArray latest_tag_array;
     bool new_observation = false;
     {
-      std::scoped_lock lock(tag_detection_msg_mutex_);
-      if (rclcpp::Time(last_tag_detection_.header.stamp) > last_tag_detection_time_)
+      std::scoped_lock lock(tag_msg_queue_mutex_);
+      if (!tag_msg_queue_.empty())
       {
-        // Mark the arrival time of our latest.
-        last_tag_detection_time_ = last_tag_detection_.header.stamp;
-
-        if (!last_tag_detection_.detections.empty())
+        if (!tag_msg_queue_.front().detections.empty())
         {
           // Make a copy of the latest, so we can let go of our mutex.
-          last_tag_detection = last_tag_detection_;
+          latest_tag_array = tag_msg_queue_.front();
           new_observation = true;
         }
+        tag_msg_queue_.pop();
       }
     }
 
@@ -148,7 +145,7 @@ private:
       std::string target_frame = BASE_FRAME;
       std::string source_frame = SENSOR_FRAME;
       ekf_localizer::TagArray tag_array_base_frame;  // latest tag detection array, base frame.
-      for (const ekf_localizer::TagDetection& d: last_tag_detection.detections)
+      for (const ekf_localizer::TagDetection& d: latest_tag_array.detections)
       {
         // Position of the detected tag, in the sensor frame.
         geometry_msgs::msg::PointStamped p_sensor;
@@ -262,11 +259,14 @@ private:
 
   void tag_detection_cb(const ekf_localizer::TagArray::SharedPtr& msg)
   {
+    // Lock and put a copy of the message in the queue.
     {
-      std::scoped_lock lock(tag_detection_msg_mutex_);
-      last_tag_detection_ = *msg;
+      std::scoped_lock lock(tag_msg_queue_mutex_);
+      tag_msg_queue_.emplace(*msg);
     }
-    for (const ekf_localizer::TagDetection& d: last_tag_detection_.detections)
+
+    // Warn if tag bundles are present.
+    for (const ekf_localizer::TagDetection& d: msg->detections)
     {
       if (d.id.size() > 1)
       {
@@ -275,9 +275,6 @@ private:
           "and may result in erroneous measurements.");
       }
     }
-
-    RCLCPP_DEBUG_STREAM_THROTTLE(
-      this->get_logger(), *this->get_clock(), 1000,  "TagArray frame_id:  " << msg->header.frame_id);
   }
 };
 
