@@ -31,7 +31,7 @@ EkfState Ekf::predict(const EkfState& prev_state, const TwistCmd& u, double dt, 
   Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();
   Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> P0 = prev_state.covariance;
   Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> P1 = G_t * P0 * G_t.transpose();
-  P1.block<3, 3>(0, 0) += R_t * (u.linear / MAX_VEL_X) * dt; // Only update pose covariance.
+  P1.block<3, 3>(0, 0) += R_t; // Only update pose covariance.
   predicted_state.covariance = P1;
 
   return predicted_state;
