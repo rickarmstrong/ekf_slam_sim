@@ -55,11 +55,7 @@ void Ekf::init_new_landmarks(const std::list<Measurement>& z_k)
 // TODO: need docstrings for this and predict().
 EkfState Ekf::correct(const EkfState& predicted_state, const std::list<Measurement>& z_k)
 {
-  if (z_k.empty())
-  {
-    estimated_state_ = predicted_state;
-    return estimated_state_;
-  }
+  estimated_state_ = predicted_state;
 
   for (Measurement z: z_k)
   {
@@ -91,7 +87,7 @@ EkfState Ekf::correct(const EkfState& predicted_state, const std::list<Measureme
     // Covariance (Joseph form).
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I = Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>::Identity();
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I_KH = I - K_i_t * H_t;
-    estimated_state_.covariance = I_KH * estimated_state_.covariance * I_KH.transpose() + K_i_t * R_t * K_i_t.transpose();
+    estimated_state_.covariance = I_KH * predicted_state.covariance * I_KH.transpose() + K_i_t * R_t * K_i_t.transpose();
   }
 
   return estimated_state_;
