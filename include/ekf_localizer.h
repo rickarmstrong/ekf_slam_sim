@@ -24,7 +24,7 @@ const Eigen::Matrix2d M_t{
 // Measurement noise, stdev of cartesian (x, y) measurement noise.
 constexpr double MEASUREMENT_STDEVX_M = 0.01;
 constexpr double MEASUREMENT_STDEVY_M = 0.01;
-const Eigen::Matrix2d Q_t{
+const Eigen::Matrix2d R_t{
   {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
   {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
 };

@@ -28,10 +28,10 @@ EkfState Ekf::predict(const EkfState& prev_state, const TwistCmd& u, double dt, 
   G_t.setIdentity();
   G_t.block<3, 3>(0, 0) = G_t_x(u, x0, dt);
   Eigen::Matrix<double, 3, 2> V_t = V_t_x(u, x0, dt); // 3x2 matrix that maps control space noise to state space.
-  Eigen::Matrix3d R_t = V_t * M_t * V_t.transpose();
+  Eigen::Matrix3d Q_t = V_t * M_t * V_t.transpose();
   Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> P0 = prev_state.covariance;
   Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> P1 = G_t * P0 * G_t.transpose();
-  P1.block<3, 3>(0, 0) += R_t; // Only update pose covariance.
+  P1.block<3, 3>(0, 0) += Q_t; // Only update pose covariance.
   predicted_state.covariance = P1;
 
   return predicted_state;
@@ -76,7 +76,7 @@ EkfState Ekf::correct(const EkfState& predicted_state, const std::list<Measureme
     // (2N+3, 2) = (2N+3,2N+3) @ (2N+3, 2) @ ((2, 2N+3) @ (2N+3, 2N+3) @ (2N+3, 2) + (2, 2))^-1
     Eigen::Matrix<double, 2 * LANDMARKS_KNOWN + POSE_DIMS, LM_DIMS> K_i_t;
     K_i_t.setZero();
-    K_i_t = (predicted_state.covariance * H_t.transpose()) * (H_t * predicted_state.covariance * H_t.transpose() + Q_t).inverse();
+    K_i_t = (predicted_state.covariance * H_t.transpose()) * (H_t * predicted_state.covariance * H_t.transpose() + R_t).inverse();
 
     /////////////////////////////////////////////////////////////////////////
     // Update mean state and covariance estimates for this observation.
@@ -91,7 +91,7 @@ EkfState Ekf::correct(const EkfState& predicted_state, const std::list<Measureme
     // Covariance (Joseph form).
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I = Eigen::Matrix<double, STATE_DIMS, STATE_DIMS>::Identity();
     Eigen::Matrix<double, STATE_DIMS, STATE_DIMS> I_KH = I - K_i_t * H_t;
-    estimated_state_.covariance = I_KH * estimated_state_.covariance * I_KH.transpose() + K_i_t * Q_t * K_i_t.transpose();
+    estimated_state_.covariance = I_KH * estimated_state_.covariance * I_KH.transpose() + K_i_t * R_t * K_i_t.transpose();
   }
 
   return estimated_state_;
