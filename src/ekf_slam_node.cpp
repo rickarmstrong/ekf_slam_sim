@@ -1,6 +1,7 @@
 // Copyright (c) 2025 Richard Armstrong
 #include <format>
 #include <mutex>
+#include <random>
 #include<nav_msgs/msg/odometry.hpp>
 #include<tf2_ros/transform_broadcaster.h>
 #include<tf2_ros/buffer.h>
@@ -65,6 +66,11 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
 
+  // Noise generator, for simulation.
+  std::mt19937 noise_source_{std::random_device{}()};
+  std::normal_distribution<double> odom_linear_noise_{0.0, ekf_localizer::CMD_VEL_LIN_STDEV_MS};
+  std::normal_distribution<double> odom_angular_noise_{0.0, ekf_localizer::CMD_VEL_ANG_STDEV_RADS};
+
   void broadcast_pose_as_tf(const ekf_localizer::Pose2D& pose) const
   {
     geometry_msgs::msg::TransformStamped t;
@@ -112,8 +118,10 @@ private:
       return;
     }
 
-    // Read-in our velocity command.
-    const ekf_localizer::TwistCmd u{msg->twist.twist.linear.x, msg->twist.twist.angular.z};
+    // Read-in odom, which we treat as a velocity command. Add some simulated noise
+    const ekf_localizer::TwistCmd u{
+      msg->twist.twist.linear.x + odom_linear_noise_(noise_source_),
+      msg->twist.twist.angular.z + odom_angular_noise_(noise_source_),};
 
     // Calculate the time delta and predict our next state based solely on our motion model.
     double dt = (msg_timestamp - last_odom_time_).seconds();
@@ -142,15 +150,13 @@ private:
     if (new_observation)
     {
       // Use tf to transform detections from the sensor frame into the base frame.
-      std::string target_frame = BASE_FRAME;
-      std::string source_frame = SENSOR_FRAME;
       ekf_localizer::TagArray tag_array_base_frame;  // latest tag detection array, base frame.
       for (const ekf_localizer::TagDetection& d: latest_tag_array.detections)
       {
         // Position of the detected tag, in the sensor frame.
         geometry_msgs::msg::PointStamped p_sensor;
-        p_sensor.header.frame_id = source_frame;
-        p_sensor.header.stamp = this->get_clock()->now();
+        p_sensor.header.frame_id = SENSOR_FRAME;
+        p_sensor.header.stamp = latest_tag_array.header.stamp;
         p_sensor.point = d.pose.pose.pose.position;
 
         // Transform the position to base frame. We assume that the sensor->base
@@ -158,7 +164,7 @@ private:
         geometry_msgs::msg::PointStamped p_base_frame;
         try
         {
-          p_base_frame = tf_buffer_->transform(p_sensor, target_frame);
+          p_base_frame = tf_buffer_->transform(p_sensor, BASE_FRAME);
         }
         catch (tf2::TransformException& ex)
         {

@@ -14,7 +14,7 @@
 namespace ekf_localizer {
 
 // Process noise params, expressed as control noise. Will be mapped to state space at runtime.
-constexpr double CMD_VEL_LIN_STDEV_MS = 0.001;  // One-sigma Linear velocity error, meters/s.
+constexpr double CMD_VEL_LIN_STDEV_MS = 0.01;  // One-sigma Linear velocity error, meters/s.
 constexpr double CMD_VEL_ANG_STDEV_RADS = 0.01; // One-sigma angular velocity error, radians/s.
 const Eigen::Matrix2d M_t{
   {pow(CMD_VEL_LIN_STDEV_MS, 2.), 0.0},
@@ -22,8 +22,8 @@ const Eigen::Matrix2d M_t{
 };
 
 // Measurement noise, stdev of cartesian (x, y) measurement noise.
-constexpr double MEASUREMENT_STDEVX_M = 0.001;
-constexpr double MEASUREMENT_STDEVY_M = 0.001;
+constexpr double MEASUREMENT_STDEVX_M = 0.01;
+constexpr double MEASUREMENT_STDEVY_M = 0.01;
 const Eigen::Matrix2d Q_t{
   {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
   {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
@@ -172,9 +172,9 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
     double c_w_t = cos(theta + (w_t * delta_t));
 
     double V_0_0 = (1. / w_t) * (-s_t + s_w_t);
-    double V_0_1 = (v_t / w_t * w_t) * (s_t  - s_w_t) + (v_t / w_t) * c_w_t * delta_t;
+    double V_0_1 = (v_t / (w_t * w_t)) * (s_t - s_w_t) + (v_t / w_t) * c_w_t * delta_t;
     double V_1_0 = (1. / w_t) * (c_t - c_w_t);
-    double V_1_1 = -(v_t / w_t * w_t) * (c_t - c_w_t) + (v_t / w_t) * s_w_t * delta_t;
+    double V_1_1 = -(v_t / (w_t * w_t)) * (c_t - c_w_t) + (v_t / w_t) * s_w_t * delta_t;
     V_t <<  V_0_0, V_0_1,
             V_1_0, V_1_1,
             0.0, delta_t;
