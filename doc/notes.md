@@ -1,3 +1,8 @@
+* Video of EKF SLAM doing pretty good on loop closure: https://www.youtube.com/watch?v=BaqSRf5pAZ0. 
+Note: this video appears to have been made using a MATLAB package from Tim Bailey:
+  https://github.com/OpenSLAM-org/openslam_bailey-slam/blob/master/ekfslam_v1/. Looking at the code there,
+ It looks like the landmark positions are all known beforehand. See `get_observations.m`.
+
 * Sequential, or batch the measurements?
   * https://math.stackexchange.com/questions/4011815/kalman-filtering-processing-all-measurements-together-vs-processing-them-sequen
   * Claude's take: https://claude.ai/chat/fb00d44d-0b88-47e7-9bc5-51ac5886b525
