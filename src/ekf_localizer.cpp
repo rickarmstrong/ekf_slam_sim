@@ -1,10 +1,22 @@
 // Copyright (c) 2025 Richard Armstrong
+#include <fstream>
+#include <rclcpp/rclcpp.hpp>
 #include "ekf_localizer.h"
 #include "ekf_state.h"
 #include "utility.hpp"
 
 // TODO: reorder definitions by name (i.e. alphabetize).
 namespace ekf_localizer {
+Ekf::Ekf() = default;
+
+Ekf::Ekf(const std::string& log_file_path)
+  :log_file_(std::make_unique<std::ofstream>(log_file_path))
+{
+  *log_file_ << "x,y\n";
+  *log_file_ << std::fixed << std::setprecision(9);
+}
+
+Ekf::~Ekf() = default;
 
 EkfState Ekf::predict(const EkfState& prev_state, const TwistCmd& u, double dt)
 {
@@ -80,7 +92,12 @@ EkfState Ekf::correct(const EkfState& predicted_state, const std::list<Measureme
     //
     // Mean.
     Eigen::Vector2d z_hat = map_to_sensor(get_landmarks().row(z.id), predicted_state.mean.head(POSE_DIMS));  // Expected measurement.
-    estimated_state_.mean = predicted_state.mean + K_i_t * (Eigen::Vector2d(z.x, z.y) - z_hat);
+    Eigen::Vector2d innovation = Eigen::Vector2d(z.x, z.y) - z_hat;
+    if (log_file_)
+    {
+      *log_file_ << std::format("{},{}", innovation[0], innovation[1]) << "\n";
+    }
+    estimated_state_.mean = predicted_state.mean + K_i_t * innovation;
     double theta = estimated_state_.mean[2];
     estimated_state_.mean[2] = atan2(sin(theta), cos(theta)); // Normalize theta.
 

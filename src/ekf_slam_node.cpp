@@ -1,5 +1,6 @@
 // Copyright (c) 2025 Richard Armstrong
 #include <format>
+#include <filesystem>
 #include <mutex>
 #include <random>
 #include<nav_msgs/msg/odometry.hpp>
@@ -14,6 +15,8 @@
 #include "ekf_localizer.h"
 #include "measurement.h"
 #include "utility.hpp"
+
+namespace fs = std::filesystem;
 using Ekf = ekf_localizer::Ekf;
 
 constexpr size_t QOS_HISTORY_DEPTH = 10;
@@ -21,6 +24,55 @@ constexpr double LM_MARKER_SCALE = 0.25;  // RViz markers representing landmarks
 
 const char* BASE_FRAME = "base_link";
 const char* SENSOR_FRAME = "oakd_rgb_camera_optical_frame";
+
+class DeadReckoner final : public rclcpp::Node
+{
+public:
+  DeadReckoner()
+    : Node("dead_reckoner")
+  {
+    pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("dead_reckoning", QOS_HISTORY_DEPTH);
+  }
+
+  void reckon(const ekf_localizer::TwistCmd u, const rclcpp::Time& timestamp)
+  {
+    // If this is our first odom message, we can't calculate dt, so
+    // save the current time and return.
+    if (first_odom_msg_)
+    {
+      last_odom_time_ = timestamp;
+      first_odom_msg_ = false;
+      RCLCPP_INFO(this->get_logger(), "DeadReckoner::reckon(): first odom message received.");
+      return;
+    }
+
+    // Calculate the time delta and predict our next state based solely on our motion model.
+    double dt = (timestamp - last_odom_time_).seconds();
+    dr_pose_ = g(u, dr_pose_, dt);
+    last_odom_time_ = timestamp;
+
+    // Publish our dead-reckoned pose. Covariance is not used.
+    geometry_msgs::msg::PoseWithCovarianceStamped msg;
+    msg.header.stamp = this->get_clock()->now();
+    msg.header.frame_id = "map";
+    msg.pose.pose.position.x = dr_pose_(0);
+    msg.pose.pose.position.y = dr_pose_(1);
+    msg.pose.pose.position.z = 0.0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, dr_pose_(2));
+    msg.pose.pose.orientation.x = q.x();
+    msg.pose.pose.orientation.y = q.y();
+    msg.pose.pose.orientation.z = q.z();
+    msg.pose.pose.orientation.w = q.w();
+    pose_pub_->publish(msg);
+  }
+
+private:
+  bool first_odom_msg_ = true;
+  rclcpp::Time last_odom_time_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
+  ekf_localizer::Pose2D dr_pose_;
+};
 
 class EkfNode final : public rclcpp::Node
 {
@@ -42,10 +94,25 @@ public:
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+    // Initialize our filter and if appropriate, its log file name.
+    this->declare_parameter("write_filter_log", false);
+    this->declare_parameter("filter_log_dir", "");
+    if (this->get_parameter("write_filter_log").as_bool())
+    {
+      filter_log_dir_= this->get_parameter("filter_log_dir").as_string();
+      std::string log_file_name = std::format("filter_log_{}.txt", rclcpp::Clock().now().seconds());
+      fs::path file_path = fs::path(filter_log_dir_) / log_file_name;
+      filter_ = std::make_unique<Ekf>(file_path);
+    }
+    else
+    {
+      filter_ = std::make_unique<Ekf>();
+    }
   }
 
 private:
-  Ekf filter_;
+  std::unique_ptr<Ekf> filter_;
 
   // Odom messages.
   bool first_odom_msg_ = true;
@@ -68,8 +135,12 @@ private:
 
   // Noise generator, for simulation.
   std::mt19937 noise_source_{std::random_device{}()};
-  std::normal_distribution<double> odom_linear_noise_{0.0, ekf_localizer::CMD_VEL_LIN_STDEV_MS};
+  std::normal_distribution<double> odom_linear_noise_{0.01, ekf_localizer::CMD_VEL_LIN_STDEV_MS};
   std::normal_distribution<double> odom_angular_noise_{0.0, ekf_localizer::CMD_VEL_ANG_STDEV_RADS};
+
+  // Unfiltered estimate, based solely on odometry.
+  DeadReckoner dr_;
+  std::string filter_log_dir_;
 
   void broadcast_pose_as_tf(const ekf_localizer::Pose2D& pose) const
   {
@@ -123,9 +194,13 @@ private:
       msg->twist.twist.linear.x + odom_linear_noise_(noise_source_),
       msg->twist.twist.angular.z + odom_angular_noise_(noise_source_),};
 
+    // Pass the message to our DeadReckoner, which will publish a running, unfiltered pose
+    // estimate that we can compare to our filtered estimate.
+    dr_.reckon(u, msg_timestamp);
+
     // Calculate the time delta and predict our next state based solely on our motion model.
     double dt = (msg_timestamp - last_odom_time_).seconds();
-    auto predicted_state = filter_.predict(filter_.get_state(), u, dt);
+    auto predicted_state = filter_->predict(filter_->get_state(), u, dt);
     last_odom_time_ = msg_timestamp;
 
     // TODO: collapse this to a function.
@@ -183,7 +258,7 @@ private:
       // Do a correction using the latest observation.
       std::list<ekf_localizer::Measurement> z_k = to_measurements(tag_array_base_frame);
       predicted_state.init_new_landmarks(z_k);
-      filter_.correct(predicted_state, z_k);
+      filter_->correct(predicted_state, z_k);
 
       // Notify on stdout, for debugging purposes.
       std::stringstream ss;
@@ -196,12 +271,12 @@ private:
     }
     else
     {
-      filter_.correct(predicted_state, std::list<ekf_localizer::Measurement>());
+      filter_->correct(predicted_state, std::list<ekf_localizer::Measurement>());
     }
 
-    publish_pose(filter_.get_state().mean.head(ekf_localizer::POSE_DIMS), filter_.get_state().covariance.block<3, 3>(0, 0));
-    publish_landmarks(filter_.get_landmarks());
-    broadcast_pose_as_tf(filter_.get_state().mean.head(ekf_localizer::POSE_DIMS));
+    publish_pose(filter_->get_state().mean.head(ekf_localizer::POSE_DIMS), filter_->get_state().covariance.block<3, 3>(0, 0));
+    publish_landmarks(filter_->get_landmarks());
+    broadcast_pose_as_tf(filter_->get_state().mean.head(ekf_localizer::POSE_DIMS));
   }
 
   void publish_landmarks(const Eigen::Matrix<double, ekf_localizer::LANDMARKS_KNOWN, ekf_localizer::LM_DIMS>& landmarks)
@@ -234,7 +309,7 @@ private:
 
   }
 
-  // Convert a ekf_localizer::Pose2D to a ROS message and publish it.
+  // Convert an ekf_localizer::Pose2D to a ROS message and publish it.
   void publish_pose(const ekf_localizer::Pose2D& pose, const Eigen::Matrix3d& cov) const
   {
     geometry_msgs::msg::PoseWithCovarianceStamped msg;
@@ -282,32 +357,6 @@ private:
       }
     }
   }
-};
-
-class DeadReckoner final : public rclcpp::Node
-{
-public:
-  DeadReckoner()
-    : Node("dead_reckoner")
-  {
-    // Odometry messages, from which we will use velocities and treat them as control.
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "odom", QOS_HISTORY_DEPTH, [this](const nav_msgs::msg::Odometry::SharedPtr msg){ odom_cb(msg); });
-
-    pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("ekf_pose", QOS_HISTORY_DEPTH);
-  }
-
-  void odom_cb(const nav_msgs::msg::Odometry::SharedPtr& msg)
-  {
-    ekf_localizer::TwistCmd u(0., 0.);
-    double dt;
-    ekf_localizer::Pose2D x0;
-    ekf_localizer::Pose2D x1 = ekf_localizer::g(u, x0, dt);
-  }
-
-private:
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
 };
 
 int main(int argc, char * argv[])

@@ -2,8 +2,9 @@
 #ifndef EKF_LOCALIZER_HPP
 #define EKF_LOCALIZER_HPP
 #include <cmath>
-#include <chrono>
+#include <iosfwd>
 #include <list>
+#include <memory>
 
 #include <Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
@@ -14,16 +15,16 @@
 namespace ekf_localizer {
 
 // Process noise params, expressed as control noise. Will be mapped to state space at runtime.
-constexpr double CMD_VEL_LIN_STDEV_MS = 0.01;  // One-sigma Linear velocity error, meters/s.
-constexpr double CMD_VEL_ANG_STDEV_RADS = 0.01; // One-sigma angular velocity error, radians/s.
+constexpr double CMD_VEL_LIN_STDEV_MS = 0.03;  // One-sigma Linear velocity error, meters/s.
+constexpr double CMD_VEL_ANG_STDEV_RADS = 0.03; // One-sigma angular velocity error, radians/s.
 const Eigen::Matrix2d M_t{
   {pow(CMD_VEL_LIN_STDEV_MS, 2.), 0.0},
   {0.0, pow(CMD_VEL_ANG_STDEV_RADS, 2.)},
 };
 
 // Measurement noise, stdev of cartesian (x, y) measurement noise.
-constexpr double MEASUREMENT_STDEVX_M = 0.01;
-constexpr double MEASUREMENT_STDEVY_M = 0.01;
+constexpr double MEASUREMENT_STDEVX_M = 0.001;
+constexpr double MEASUREMENT_STDEVY_M = 0.001;
 const Eigen::Matrix2d R_t{
   {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
   {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
@@ -34,9 +35,6 @@ const Eigen::Matrix2d R_t{
 // with an angular velocity of zero. We mitigate this problem by
 // setting a small minimum angular velocity.
 constexpr double MIN_ANG_VEL = 1e-4;
-
-// Need to know this for scaling covariance with velocity.
-constexpr double MAX_VEL_X = 0.25;  // m/s.
 
 using SensorJacobian = Eigen::Matrix<double, LM_DIMS, POSE_DIMS + LM_DIMS>;
 
@@ -68,7 +66,7 @@ Pose2D g(const TwistCmd& u, const Pose2D& x0, double delta_t)
       0.0  // No rotation
     };
   }
-  // Curved motion.
+  // Circular arc.
   else {
     double r = v_t / w_t;
     delta_x = {
@@ -186,6 +184,10 @@ Eigen::Matrix<double, 3, 2> V_t_x(const TwistCmd& u, const Pose2D& x0, double de
 class Ekf final
 {
 public:
+  explicit Ekf();
+  explicit Ekf(const std::string& log_file_path);
+  ~Ekf();
+
   EkfState predict(const EkfState& prev_state, const TwistCmd& u, double dt);
   EkfState predict(const EkfState& prev_state, const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t);
   EkfState correct(const EkfState& predicted_state, const std::list<Measurement>& z_k);
@@ -216,6 +218,7 @@ private:
   }
 
   EkfState estimated_state_;
+  std::unique_ptr<std::ofstream> log_file_;
 };
 
 }  // namespace ekf_localizer
