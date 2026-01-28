@@ -26,12 +26,12 @@ EkfState Ekf::predict(const EkfState& prev_state, const TwistCmd& u, double dt)
 
 EkfState Ekf::predict(const EkfState& prev_state, const TwistCmd& u, double dt, const Eigen::Matrix2d& M_t)
 {
-  // Noise-free motion estimate.
+  // Start from the latest estimate.
+  EkfState predicted_state = prev_state;
+
+  // Predict next pose and update our copy.
   Pose2D x0 = prev_state.mean.head(POSE_DIMS);
   Pose2D x1 = g(u, x0, dt);
-
-  // Update pose.
-  EkfState predicted_state;
   predicted_state.mean = prev_state.mean;
   predicted_state.mean.head(POSE_DIMS) = x1;
 

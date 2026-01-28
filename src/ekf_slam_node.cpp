@@ -189,10 +189,13 @@ private:
       return;
     }
 
-    // Read-in odom, which we treat as a velocity command. Add some simulated noise
+    // Read-in odom, which we treat as a velocity command. Add some simulated noise,
+    // scaled by velocities so that we don't accumulate error when barely or not moving.
+    double noise_scale_lin = msg->twist.twist.linear.x / ekf_localizer::MAX_LIN_VEL;
+    double noise_scale_ang = msg->twist.twist.angular.z / ekf_localizer::MAX_ANG_VEL;
     const ekf_localizer::TwistCmd u{
-      msg->twist.twist.linear.x + odom_linear_noise_(noise_source_),
-      msg->twist.twist.angular.z + odom_angular_noise_(noise_source_),};
+      msg->twist.twist.linear.x + odom_linear_noise_(noise_source_) * noise_scale_lin,
+      msg->twist.twist.angular.z + odom_angular_noise_(noise_source_) * noise_scale_ang,};
 
     // Pass the message to our DeadReckoner, which will publish a running, unfiltered pose
     // estimate that we can compare to our filtered estimate.

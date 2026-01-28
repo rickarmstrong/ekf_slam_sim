@@ -23,8 +23,8 @@ const Eigen::Matrix2d M_t{
 };
 
 // Measurement noise, stdev of cartesian (x, y) measurement noise.
-constexpr double MEASUREMENT_STDEVX_M = 0.001;
-constexpr double MEASUREMENT_STDEVY_M = 0.001;
+constexpr double MEASUREMENT_STDEVX_M = 1e-4;
+constexpr double MEASUREMENT_STDEVY_M = 1e-4;
 const Eigen::Matrix2d R_t{
   {pow(MEASUREMENT_STDEVX_M, 2.), 0.0},
   {0.0, pow(MEASUREMENT_STDEVY_M, 2.)},
@@ -35,6 +35,10 @@ const Eigen::Matrix2d R_t{
 // with an angular velocity of zero. We mitigate this problem by
 // setting a small minimum angular velocity.
 constexpr double MIN_ANG_VEL = 1e-4;
+
+// Used for scaling simulated noise with velocities.
+constexpr double MAX_LIN_VEL = 0.25; // m/s.
+constexpr double MAX_ANG_VEL = 1.0; // radians/s.
 
 using SensorJacobian = Eigen::Matrix<double, LM_DIMS, POSE_DIMS + LM_DIMS>;
 
