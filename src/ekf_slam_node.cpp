@@ -4,6 +4,7 @@
 #include <mutex>
 #include <random>
 #include<nav_msgs/msg/odometry.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 #include<tf2_ros/transform_broadcaster.h>
 #include<tf2_ros/buffer.h>
 #include<tf2_ros/transform_listener.h>
@@ -91,7 +92,7 @@ public:
     pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("ekf_pose", QOS_HISTORY_DEPTH);
     lm_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("landmarks", 10);
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-
+    cov_publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("ekf_pose/covariance", 10);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -128,6 +129,7 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr lm_pub_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr cov_publisher_;
 
   // tf listener.
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
@@ -278,8 +280,20 @@ private:
     }
 
     publish_pose(filter_->get_state().mean.head(ekf_localizer::POSE_DIMS), filter_->get_state().covariance.block<3, 3>(0, 0));
+    publish_cov(filter_->get_state().covariance);
     publish_landmarks(filter_->get_landmarks());
     broadcast_pose_as_tf(filter_->get_state().mean.head(ekf_localizer::POSE_DIMS));
+  }
+
+  void publish_cov(const Eigen::MatrixXd& P) {
+    auto msg = std_msgs::msg::Float64MultiArray();
+    msg.data.resize(P.size());
+
+    // Convert column-major Eigen to row-major for transmission
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> P_row_major = P;
+    std::copy(P_row_major.data(), P_row_major.data() + P_row_major.size(), msg.data.begin());
+
+    cov_publisher_->publish(msg);
   }
 
   void publish_landmarks(const Eigen::Matrix<double, ekf_localizer::LANDMARKS_KNOWN, ekf_localizer::LM_DIMS>& landmarks)
