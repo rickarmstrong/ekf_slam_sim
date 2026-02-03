@@ -5,3 +5,4 @@ install/
 launch/__pycache__/
 log/
 build/
+tmp/
